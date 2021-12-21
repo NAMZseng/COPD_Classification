@@ -86,7 +86,7 @@ def find_lung_range(label_path, data_root_path, output_path):
     label_df.to_excel(output_path)
 
 
-def load_datapath_label(data_root_path, label_path, cut, cut_6):
+def load_datapath_label(data_root_path, label_path, cut_pic_num):
     """
     加载每一张DICOM图像的路径，并为其加上对应标签
     :param data_root_path:
@@ -114,7 +114,10 @@ def load_datapath_label(data_root_path, label_path, cut, cut_6):
             for root, dirs, files in os.walk(path):
                 if len(files) == 0:
                     continue
-                if cut:
+
+                if cut_pic_num == 'remain':
+                    pass
+                elif cut_pic_num == 'precise':
                     files.sort()
                     appear_idx = label_df['appear_index'][i]
                     disappear_idx = label_df['disappear_index'][i]
@@ -124,7 +127,7 @@ def load_datapath_label(data_root_path, label_path, cut, cut_6):
                         disappear_idx = disappear_idx + 1
 
                     files = files[appear_idx:disappear_idx + 1]
-                if cut_6:
+                elif cut_pic_num == 'rough':
                     files.sort()
                     start_idx = int(len(files) / 6)
                     end_idx = len(files) - start_idx
@@ -141,10 +144,14 @@ def load_datapath_label(data_root_path, label_path, cut, cut_6):
     return data_path_with_label
 
 
-def load_data(path):
+def load_data(path, cut_pic_size):
     dicom_image = sitk.ReadImage(path)
     # image_array.shape = (1,512,512)
     image_array = sitk.GetArrayFromImage(dicom_image)
+
+    if cut_pic_size:
+        # 裁剪成1*432*432
+        image_array = image_array[:, 40:472, 40:472]
 
     return image_array
 

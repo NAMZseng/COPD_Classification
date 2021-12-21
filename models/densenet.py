@@ -16,3 +16,8 @@ def densenet121(channels, out_features, use_gpu, pretrained, drop_rate):
         model = model.cuda()
 
     return model
+
+
+if __name__ == '__main__':
+    net = densenet121(1, 4, False, False, 0.5)
+    print(net)

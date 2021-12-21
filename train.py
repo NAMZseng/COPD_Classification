@@ -16,7 +16,7 @@ from global_settings import CHECKPOINT_PATH, LOG_DIR, TIME_NOW
 import argparse
 
 
-def next_batch(batch_size, index_in_total, data, test):
+def next_batch(batch_size, index_in_total, data, cut_pic_size, phase):
     start = index_in_total
     index_in_total += batch_size
     total_num = len(data)
@@ -34,19 +34,20 @@ def next_batch(batch_size, index_in_total, data, test):
     for i in range(start, end):
         if i < total_num:
             image_path = data[i]['image_path']
-            image = load_data(image_path)
+            image = load_data(image_path, cut_pic_size)
             batch_images.append(image)
 
             label = data[i]['label']
             batch_labels.append(label)
 
-            if test:
+            if phase == 'test':
                 batch_dirs.append(data[i]['dir'])
 
     return batch_images, batch_labels, batch_dirs, index_in_total
 
 
-def train(net, use_gpu, train_data, valid_data, batch_size, num_epochs, optimizer, criterion, save_model_name):
+def train(net, use_gpu, train_data, valid_data, cut_pic_size, batch_size, num_epochs, optimizer, criterion,
+          save_model_name):
     prev_time = datetime.now()
 
     # use tensorboard
@@ -55,6 +56,7 @@ def train(net, use_gpu, train_data, valid_data, batch_size, num_epochs, optimize
 
     writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, 'densenet121', TIME_NOW))
 
+    phase = 'train_valid'
     max_vail_acc = 0.0
 
     if not os.path.exists(CHECKPOINT_PATH):
@@ -75,7 +77,7 @@ def train(net, use_gpu, train_data, valid_data, batch_size, num_epochs, optimize
 
         for batch in range(batch_num):
             batch_images, batch_labels, _, index_in_trainset = next_batch(batch_size, index_in_trainset, train_data,
-                                                                          False)
+                                                                          cut_pic_size, phase)
             batch_images = torch.tensor(batch_images, dtype=torch.float)
 
             if use_gpu:
@@ -116,7 +118,7 @@ def train(net, use_gpu, train_data, valid_data, batch_size, num_epochs, optimize
 
             for batch in range(batch_num):
                 batch_images, batch_labels, _, index_in_validset = next_batch(batch_size, index_in_validset,
-                                                                              valid_data, False)
+                                                                              valid_data, cut_pic_size, phase)
                 batch_images = torch.tensor(batch_images, dtype=torch.float)
 
                 if use_gpu:
@@ -154,12 +156,13 @@ def train(net, use_gpu, train_data, valid_data, batch_size, num_epochs, optimize
     writer.close()
 
 
-def test(use_gpu, test_data, batch_size, save_model_name, result_file):
+def test(use_gpu, test_data, cut_pic_size, batch_size, save_model_name, result_file):
+    phase = 'test'
     test_acc = 0
     index_in_testset = 0
     label_list = []
-    outpres_list = []
-    prelabels_list = []
+    probability_predicted_list = []
+    label_predicted_list = []
     dirs_list = []
 
     net = torch.load(os.path.join(CHECKPOINT_PATH, save_model_name))
@@ -173,7 +176,7 @@ def test(use_gpu, test_data, batch_size, save_model_name, result_file):
 
         for batch in range(batch_num):
             batch_images, batch_labels, batch_dirs, index_in_testset = next_batch(batch_size, index_in_testset,
-                                                                                  test_data, True)
+                                                                                  test_data, cut_pic_size, phase)
             batch_images = torch.tensor(batch_images, dtype=torch.float)
 
             if use_gpu:
@@ -192,14 +195,14 @@ def test(use_gpu, test_data, batch_size, save_model_name, result_file):
             test_acc += num_correct
 
             label_list.extend(batch_labels.cpu().numpy().tolist())
-            outpres_list.extend(output_softmax.cpu().numpy().tolist())
-            prelabels_list.extend(pred_label.cpu().numpy().tolist())
+            probability_predicted_list.extend(output_softmax.cpu().numpy().tolist())
+            label_predicted_list.extend(pred_label.cpu().numpy().tolist())
             dirs_list.extend(batch_dirs)
 
         print("Test Acc: %f" % (test_acc / len(test_data)))
 
-        df = pd.DataFrame(outpres_list, columns=['p0', 'p1', 'p2', 'p3'])
-        df.insert(df.shape[1], 'label-pre', prelabels_list)
+        df = pd.DataFrame(probability_predicted_list, columns=['p0', 'p1', 'p2', 'p3'])
+        df.insert(df.shape[1], 'label-pre', label_predicted_list)
         df.insert(df.shape[1], 'label_gt', label_list)
         df.insert(df.shape[1], 'dirs', dirs_list)
         df.to_excel(result_file)
@@ -256,14 +259,15 @@ def count_person_result(input_file, output_file):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/CTDATA/', help='输入数据的根路径')
-    parser.add_argument('--cut', type=bool, default=False, help='是否只截取含肺区域图像(精筛)')
-    parser.add_argument('--cut_6', type=bool, default=False, help='是否只截去上下1/6的图像(粗筛)')
+    parser.add_argument('--cut_pic_size', type=bool, default=False, help='是否将图片裁剪为432*432')
+    parser.add_argument('--cut_pic_num', type=str, choices=['remain', 'precise', 'rough'], default='remain',
+                        help='是否只截去不含肺区域的图像，remain:不截，保留原始图像的个数，precise:精筛，rough:初筛，直接截去上下各1/6的图像数量')
     parser.add_argument('--use_gpu', type=bool, default=True, help='是否只使用GPU')
-    parser.add_argument('--batch_size', type=int, default=16, help='batch size')
+    parser.add_argument('--batch_size', type=int, default=20, help='batch size')
     parser.add_argument('--num_epochs', type=int, default=50, help='num of epochs')
-    parser.add_argument('--save_model_name', type=str, default='DenseNet121_50epoch_16batchsize.pkl',
+    parser.add_argument('--save_model_name', type=str, default='DenseNet121_50epoch.pkl',
                         help='model save name')
-    parser.add_argument('--result_file', type=str, default='./result/test_50epoch_16batchsize_dir.xlsx',
+    parser.add_argument('--result_file', type=str, default='./result/test_50epoch_dir.xlsx',
                         help='test result file path')
     parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='1', help='使用哪块GPU')
 
@@ -276,9 +280,9 @@ if __name__ == '__main__':
     train_valid_data_root_path = os.path.join(args.data_root_path, 'train_valid')
     test_data_root_path = os.path.join(args.data_root_path, 'test')
 
-    train_valid_datapath_label = load_datapath_label(train_valid_data_root_path, train_valid_label_path, args.cut,
-                                                     args.cut_6)
-    test_datapath_label = load_datapath_label(test_data_root_path, test_label_path, args.cut, args.cut_6)
+    train_valid_datapath_label = load_datapath_label(train_valid_data_root_path, train_valid_label_path,
+                                                     args.cut_pic_num)
+    test_datapath_label = load_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
     train_data = []
     valid_data = []
     test_data = []
@@ -306,59 +310,59 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(net.parameters(), lr=3e-4)
     criterion = nn.CrossEntropyLoss()
 
-    train(net, args.use_gpu, train_data, valid_data, args.batch_size, args.num_epochs, optimizer, criterion,
-          args.save_model_name)
-    test(args.use_gpu, test_data, args.batch_size, args.save_model_name, args.result_file)
+    train(net, args.use_gpu, train_data, valid_data, args.cut_pic_size, args.batch_size, args.num_epochs, optimizer,
+          criterion, args.save_model_name)
+    test(args.use_gpu, test_data, args.cut_pic_size, args.batch_size, args.save_model_name, args.result_file)
 """
 方案一：不处理数据
  nohup python -u train.py \
  --data_root_path /data/zengnanrong/CTDATA/ \
- --cut False \
- --cut_6 False \
+ --cut_pic_size False \
+ --cut_pic_num remain \
  --use_gpu True \
  --batch_size 20 \
  --num_epochs 50 \
- --save_model_name DenseNet121_50epoch_lr.pkl \
- --result_file ./result/test_50epoch_lr_dir.xlsx \
+ --save_model_name DenseNet121_50epoch.pkl \
+ --result_file ./result/test_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/out_50epoch_lr.log &
+ > ./log/out_50epoch.log &
  
- 方案二：删去非肺区域的图像
+ 方案二：删去非肺区域的图像,且裁剪图像大小
   nohup python -u train.py \
  --data_root_path /data/zengnanrong/CTDATA/ \
- --cut True \
- --cut_6 False \
+ --cut_pic_size True \
+ --cut_pic_num precise \
  --use_gpu True \
  --batch_size 20 \
  --num_epochs 50 \
- --save_model_name DenseNet121_cut_50epoch.pkl \
- --result_file ./result/test_cut_50epoch_dir.xlsx \
+ --save_model_name DenseNet121_cut_size_num_precise_50epoch.pkl \
+ --result_file ./result/test_cut_size_num_precise_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/out_cut_50epoch_dir.log &
+ > ./log/out_cut_size_num_precise_50epoch.log &
  
- 方案三：提取肺实质图像_精筛
+ 方案三：提取肺实质图像_精筛，且裁剪图像大小
   nohup python -u train.py \
  --data_root_path /data/zengnanrong/LUNG_SEG/ \
- --cut True \
- --cut_6 False \
+ --cut_pic_size True \
+ --cut_pic_num precise \
  --use_gpu True \
  --batch_size 20 \
  --num_epochs 50 \
- --save_model_name DenseNet121_seg_cut_50epoch.pkl \
- --result_file ./result/test_seg_cut_50epoch_dir.xlsx \
+ --save_model_name DenseNet121_seg_cut_size_num_precise_50epoch.pkl \
+ --result_file ./result/test_seg_cut_size_num_precise_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/out_seg_cut_50epoch_dir.log &
+ > ./log/out_seg_cut_size_num_precise_50epoch.log &
  
- 方案四：提取肺实质图像_粗筛
+ 方案四：提取肺实质图像_粗筛，且裁剪图像大小
    nohup python -u train.py \
  --data_root_path /data/zengnanrong/LUNG_SEG/ \
- --cut False \
- --cut_6 True \
+ --cut_pic_size True \
+ --cut_pic_num rough \
  --use_gpu True \
  --batch_size 20 \
  --num_epochs 50 \
- --save_model_name DenseNet121_seg_cut6_50epoch.pkl \
- --result_file ./result/test_seg_cut6_50epoch_dir.xlsx \
+ --save_model_name DenseNet121_seg_cut_size_num_rough_50epoch.pkl \
+ --result_file ./result/test_seg_cut_size_num_rough_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/out_seg_cut6_50epoch_dir.log &
+ > ./log/out_seg_cut_size_num_rough_50epoch.log &
 """
