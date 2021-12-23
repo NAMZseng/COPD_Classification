@@ -300,13 +300,12 @@ if __name__ == '__main__':
         test_data.extend(test_datapath_label[label])
 
     channels = 1
-    out_features = 4  # 4分类
-    pretrained = False  # 是否使用已训练模型
+    num_classes = 4  # 4分类
     drop_rate = 0.5  # 防止过拟合
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_device
 
-    net = densenet121(channels, out_features, args.use_gpu, pretrained, drop_rate)
+    net = densenet121(channels, num_classes, args.use_gpu, drop_rate)
     optimizer = torch.optim.Adam(net.parameters(), lr=3e-4)
     criterion = nn.CrossEntropyLoss()
 
@@ -330,39 +329,39 @@ if __name__ == '__main__':
  方案二：删去非肺区域的图像,且裁剪图像大小
   nohup python -u train.py \
  --data_root_path /data/zengnanrong/CTDATA/ \
- --cut_pic_size True \
+ --cut_pic_size False \
  --cut_pic_num precise \
  --use_gpu True \
  --batch_size 20 \
  --num_epochs 50 \
- --save_model_name DenseNet121_cut_size_num_precise_50epoch.pkl \
- --result_file ./result/test_cut_size_num_precise_50epoch_dir.xlsx \
+ --save_model_name DenseNet121_cut_num_precise_50epoch.pkl \
+ --result_file ./result/test_cut_num_precise_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/out_cut_size_num_precise_50epoch.log &
+ > ./log/out_cut_num_precise_50epoch.log &
  
  方案三：提取肺实质图像_精筛，且裁剪图像大小
   nohup python -u train.py \
  --data_root_path /data/zengnanrong/LUNG_SEG/ \
- --cut_pic_size True \
+ --cut_pic_size False \
  --cut_pic_num precise \
  --use_gpu True \
  --batch_size 20 \
- --num_epochs 50 \
- --save_model_name DenseNet121_seg_cut_size_num_precise_50epoch.pkl \
- --result_file ./result/test_seg_cut_size_num_precise_50epoch_dir.xlsx \
+ --num_epochs 40 \
+ --save_model_name DenseNet121_seg_cut_num_precise_50epoch.pkl \
+ --result_file ./result/test_seg_cut_num_precise_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/out_seg_cut_size_num_precise_50epoch.log &
+ > ./log/out_seg_cut_num_precise_50epoch_test.log &
  
  方案四：提取肺实质图像_粗筛，且裁剪图像大小
    nohup python -u train.py \
  --data_root_path /data/zengnanrong/LUNG_SEG/ \
- --cut_pic_size True \
+ --cut_pic_size False \
  --cut_pic_num rough \
  --use_gpu True \
  --batch_size 20 \
- --num_epochs 50 \
- --save_model_name DenseNet121_seg_cut_size_num_rough_50epoch.pkl \
- --result_file ./result/test_seg_cut_size_num_rough_50epoch_dir.xlsx \
+ --num_epochs 40 \
+ --save_model_name DenseNet121_seg_cut_num_rough_50epoch.pkl \
+ --result_file ./result/test_seg_cut_num_rough_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/out_seg_cut_size_num_rough_50epoch.log &
+ > ./log/out_seg_cut_num_rough_50epoch.log &
 """

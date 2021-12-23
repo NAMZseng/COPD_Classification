@@ -1,9 +1,12 @@
-import math
+from collections import OrderedDict
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from collections import OrderedDict
+
+"""
+3D DenseNet implementation from https://github.com/kenshohara/3D-ResNets-PyTorch/blob/master/models/densenet.py
+"""
 
 
 class _DenseLayer(nn.Sequential):
@@ -150,9 +153,7 @@ class DenseNet(nn.Module):
     def forward(self, x):
         features = self.features(x)
         out = F.relu(features, inplace=True)
-        out = F.adaptive_avg_pool3d(out,
-                                    output_size=(1, 1,
-                                                 1)).view(features.size(0), -1)
+        out = F.adaptive_avg_pool3d(out, output_size=(1, 1, 1)).view(features.size(0), -1)
         out = self.classifier(out)
         return out
 
@@ -181,6 +182,9 @@ def generate_model(model_depth, use_gpu, **kwargs):
                          block_config=(6, 12, 64, 48),
                          **kwargs)
 
+    for parma in model.parameters():
+        parma.requires_grad = False
+
     if use_gpu:
         model = model.to('cuda')
 
@@ -189,5 +193,5 @@ def generate_model(model_depth, use_gpu, **kwargs):
 
 if __name__ == '__main__':
     use_gpu = False
-    model = generate_model(121, use_gpu, n_input_channels=3, num_classes=4, drop_rate=0.5)
+    model = generate_model(121, use_gpu, n_input_channels=20, num_classes=4, drop_rate=0.5)
     print(model)
