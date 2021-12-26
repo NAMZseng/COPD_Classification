@@ -26,11 +26,9 @@ DenseNet网络模型的训练与测试，均以每张图片为单位，对病例
 
 ## 3关于DenseNet模型训练的一些问题
 
-- [ ]  **问题一、训练过拟合**
+- [x]  **问题一、训练过拟合**
 
-我们对CT数据不进行任何处理，进行了一次训练。训练后发现尽管Train Accuracy达到了0.839，但Test Accuracy仅有0.418，不到Train Accuracy的一半，而且valid的Acc与Loss曲线大幅振荡，所有我们推测可能是模型训练过拟合。于是我修改了drop_rate与learning rate，又进行了第二次训练，不过根据目前训练的情况，模型好像依然过拟合，且Train Acc较第一次训练，减少了近一半。**该如何解决这一问题？**
-
-下表为两次训练的参数与结果。
+我们对CT数据不进行任何处理，进行了一次训练。训练后发现尽管Train Accuracy达到了0.839，但Test Accuracy仅有0.418，不到Train Accuracy的一半，而且valid的Acc与Loss曲线大幅振荡，所有我们推测可能是模型训练过拟合。于是我修改了drop_rate与learning rate，下表为修改后的参数对比。
 
 **训练参数**
 
@@ -39,15 +37,7 @@ DenseNet网络模型的训练与测试，均以每张图片为单位，对病例
 | 第一次训练 | 20         | 50     | 0         | torch.optim.Adam(net.parameters(), lr=1e-3)     |
 | 第二次训练 | 20         | 50     | **0.5**   | torch.optim.Adam(net.parameters(), **lr=3e-4**) |
 
-**训练结果**
-
-|                            | Acc                                                          | Loss                                                         | Test Acc |
-| -------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------ | -------- |
-| 第一次训练                 | ![image-20211221155419330](https://s2.loli.net/2021/12/21/IOxrMRDbjpe9mKl.png) | ![image-20211221160818171](https://s2.loli.net/2021/12/21/4hXKeORcdDMwpil.png) | 0.418    |
-|                            | ![image-20211221155437630](https://s2.loli.net/2021/12/21/SHcuyaxVdjrOF1T.png) | ![image-20211221160849503](https://s2.loli.net/2021/12/21/43wLklfitZudzcm.png) |          |
-| 第二次训练(训练中，未结束) | ![image-20211221162057622](https://s2.loli.net/2021/12/21/KD3UrZQAWsPY4vF.png) | ![image-20211221162329450](https://s2.loli.net/2021/12/21/Lgsn8ZhwqpSTPVO.png) |          |
-
-- [ ]  **问题二、3D DenseNet数据输入**
+- [x]  **问题二、3D DenseNet数据输入**
 
 目前我在GitHub找到了一个3D DenseNet的实现代码：[3D-ResNets-PyTorch/densenet.py at master · kenshohara/3D-ResNets-PyTorch (github.com)](https://github.com/kenshohara/3D-ResNets-PyTorch/blob/master/models/densenet.py)
 
@@ -58,3 +48,5 @@ DenseNet网络模型的训练与测试，均以每张图片为单位，对病例
 3D DenseNet的输入应该是一个3维的形式，如512x512xN。最开始开会的时候，记得师兄提到过，由于每个病例的N是不统一的，有的是600多张，有的是500多张，所有需要将N统一成N'。那统一后的 512x512xN'，是一起输入吗？现在我们二维的网络训练，batch_size是20，相当于一次输入512x512x20，但N'肯定比20要大的多，512x512xN'一起输入的话应该会内存不足。
 
 或者是参考脑组用3D Unet分割的方法，先将每例病人的512x512xN'数据进行**切块**，如切成 m * m * n的形状，将每块放入3D网络中训练，最后将每例病人所有块的预测值进行求和取平均，得到每例病人在4个COPD等级上最终的预测结果，这种方式是否可行？ 
+
+**解决思路**：裁剪压缩病人的3D图像数据尺寸。从图像尺寸上，对每张图像进行压缩（相邻区域取平均），512x512压缩成256x256；在图像数量上，进行分层抽样，最后每个病人取20张图像。
