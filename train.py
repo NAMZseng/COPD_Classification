@@ -6,7 +6,7 @@ import random
 import torch
 from torch import nn
 from torch.autograd import Variable
-from dataset import load_datapath_label, load_data
+from dataset import load_2d_datapath_label, load_data
 from datetime import datetime
 from models.densenet import densenet121
 
@@ -16,7 +16,7 @@ from global_settings import CHECKPOINT_PATH, LOG_DIR, TIME_NOW
 import argparse
 
 
-def next_batch(batch_size, index_in_total, data, cut_pic_size, phase):
+def next_batch(batch_size, index_in_total, data, cut_pic_size, cut_pic_num, phase):
     start = index_in_total
     index_in_total += batch_size
     total_num = len(data)
@@ -33,8 +33,7 @@ def next_batch(batch_size, index_in_total, data, cut_pic_size, phase):
 
     for i in range(start, end):
         if i < total_num:
-            image_path = data[i]['image_path']
-            image = load_data(image_path, cut_pic_size)
+            image = load_data(data[i], cut_pic_size, cut_pic_num)
             batch_images.append(image)
 
             label = data[i]['label']
@@ -280,9 +279,9 @@ if __name__ == '__main__':
     train_valid_data_root_path = os.path.join(args.data_root_path, 'train_valid')
     test_data_root_path = os.path.join(args.data_root_path, 'test')
 
-    train_valid_datapath_label = load_datapath_label(train_valid_data_root_path, train_valid_label_path,
-                                                     args.cut_pic_num)
-    test_datapath_label = load_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
+    train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path,
+                                                        args.cut_pic_num)
+    test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
     train_data = []
     valid_data = []
     test_data = []
@@ -348,7 +347,7 @@ if __name__ == '__main__':
  --cut_pic_num precise \
  --use_gpu True \
  --batch_size 20 \
- --num_epochs 40 \
+ --num_epochs 50 \
  --save_model_name DenseNet121_seg_cut_num_precise_50epoch.pkl \
  --result_file ./result/test_seg_cut_num_precise_50epoch_dir.xlsx \
  --cuda_device 1 \
@@ -361,7 +360,7 @@ if __name__ == '__main__':
  --cut_pic_num rough \
  --use_gpu True \
  --batch_size 20 \
- --num_epochs 40 \
+ --num_epochs 50 \
  --save_model_name DenseNet121_seg_cut_num_rough_50epoch.pkl \
  --result_file ./result/test_seg_cut_num_rough_50epoch_dir.xlsx \
  --cuda_device 1 \

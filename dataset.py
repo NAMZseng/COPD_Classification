@@ -1,4 +1,5 @@
 import os
+import random
 
 import pandas as pd
 import SimpleITK as sitk
@@ -86,8 +87,9 @@ def find_lung_range(label_path, data_root_path, output_path):
     label_df.to_excel(output_path)
 
 
-def load_datapath_label(data_root_path, label_path, cut_pic_num):
+def load_2d_datapath_label(data_root_path, label_path, cut_pic_num):
     """
+    2d-densenet的数据加载
     加载每一张DICOM图像的路径，并为其加上对应标签
     :param data_root_path:
     :param label_path:
@@ -144,10 +146,82 @@ def load_datapath_label(data_root_path, label_path, cut_pic_num):
     return data_path_with_label
 
 
-def load_data(path, cut_pic_size):
-    dicom_image = sitk.ReadImage(path)
-    # image_array.shape = (1,512,512)
-    image_array = sitk.GetArrayFromImage(dicom_image)
+def load_3d_datapath_label(data_root_path, label_path):
+    """
+    3d-densenet的数据加载
+    加载每个病人的图像路径，并为其加上对应标签
+    :param data_root_path:
+    :param label_path:
+    :return:
+    """
+    ct_dir = []
+    for item in os.listdir(data_root_path):
+        if os.path.isdir(os.path.join(data_root_path, item)):
+            ct_dir.append(item)
+
+    # 确保与label文件中的名称顺序对应
+    ct_dir.sort()
+
+    label_df = pd.read_excel(label_path, sheet_name='Sheet1')
+
+    data_path_with_label = [[], [], [], []]
+
+    for i in range(len(ct_dir)):
+        data_dir_name = ct_dir[i]
+
+        if data_dir_name == label_df['subject'][i]:
+            path = os.path.join(data_root_path, data_dir_name)
+
+            for root, dirs, files in os.walk(path):
+                if len(dirs) == 1:
+                    image_path = os.path.join(root, dirs[0])
+                    # 训练时预测的标签范围为[0,3]
+                    label = label_df['GOLDCLA'][i] - 1
+                    data_path_with_label[label].append({'image_path': image_path, 'label': label, 'dir': dirs[0],
+                                                        'appear_index': label_df['appear_index'][i],
+                                                        'disappear_index': label_df['disappear_index'][i]})
+
+        return data_path_with_label
+
+
+def load_dicom_series(data_dic, cut_pic_num):
+    path = data_dic['image_path']
+
+    series_IDs = sitk.ImageSeriesReader.GetGDCMSeriesIDs(path)
+    series_file_names = sitk.ImageSeriesReader.GetGDCMSeriesFileNames(path, series_IDs[0])
+    series_reader = sitk.ImageSeriesReader()
+    series_reader.SetFileNames(series_file_names)
+    image3D = series_reader.Execute()
+    image_array = sitk.GetArrayFromImage(image3D)
+
+    if cut_pic_num == 'remain':
+        pass
+    elif cut_pic_num == 'precise':
+        appear_idx = data_dic['appear_index']
+        disappear_index = data_dic['disappear_index']
+        image_array = image_array[appear_idx:disappear_index]
+    elif cut_pic_num == 'rough':
+        start_idx = int(len(image_array) / 6)
+        end_idx = len(image_array) - start_idx
+        image_array = image_array[start_idx:end_idx]
+
+    image_array_cut = []
+    step = int(len(image_array) / 20)
+    index = 0
+    for i in range(20):
+        index = random.sample(range(i * step, (i + 1) * step), 1)
+        image_array_cut.append(image_array[index])
+
+    return image_array
+
+
+def load_data(data_dic, cut_pic_size, cut_pic_num):
+    path = data_dic['image_path']
+    if os.path.isfile(path):
+        dicom_image = sitk.ReadImage(path)
+        image_array = sitk.GetArrayFromImage(dicom_image)
+    else:
+        image_array = load_dicom_series(data_dic, cut_pic_num)
 
     if cut_pic_size:
         # 裁剪成1*432*432
@@ -172,12 +246,13 @@ if __name__ == "__main__":
     # 分割后的肺部CT图像
     # data_root_path = "/data/zengnanrong/R231/"
     # label_path = '/data/zengnanrong/label_match_ct_4_range.xlsx'
-    # data_root_path = "/data/zengnanrong/LUNG_SEG/test/"
+    # data_root_path = "/data/zengnanrong/CTDATA/test/"
     # label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
-    data_root_path = "/data/zengnanrong/LUNG_SEG/train_valid/"
+    data_root_path = "/data/zengnanrong/CTDATA/train_valid/"
     label_path = '/data/zengnanrong/label_match_ct_4_range_train_valid.xlsx'
-    data = load_datapath_label(data_root_path, label_path, False, False)
-    # print(data[0][0])
+    # data = load_2d_datapath_label(data_root_path, label_path, False, False)
+    data = load_3d_datapath_label(data_root_path, label_path)
+    print(data[0][0])
     print(len(data[0]))
     print(len(data[1]))
     print(len(data[2]))

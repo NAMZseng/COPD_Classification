@@ -12,6 +12,12 @@ import SimpleITK as sitk
 
 import pandas as pd
 
+from dataset import load_dicom_series
+
+data_path = '/data/zengnanrong/CTDATA/train_valid/E0001001V1/E0001001V1FC03'
+image = load_dicom_series(data_path, 'rough')
+print(image.shape)
+
 # list.append([0.3, 0.5, 0.1, 0.1, 0, 1, 'E001'])
 # list.append([0.3, 0.4, 0.1, 0.2, 0, 1, 'E002'])
 # list[0][4] = list[0][:4].index(max(list[0][:4]))
@@ -43,14 +49,14 @@ import pandas as pd
 # print(data_path_with_label[0])
 # print(data_path_with_label[0][0]['label'])
 
-path = "/data/zengnanrong/R231/E0001524V2/E0001524V2FC01/1.2.392.200036.9116.2.5.1.48.1215508268.1324612419.245679.dcm"
-
-image = sitk.ReadImage(path)
-image_array = sitk.GetArrayFromImage(image)
-image_array = image_array[:, 40:472, 40:472]
-image_array = np.squeeze(image_array)
-plt.imshow(image_array)
-plt.show()
+# path = "/data/zengnanrong/R231/E0001524V2/E0001524V2FC01/1.2.392.200036.9116.2.5.1.48.1215508268.1324612419.245679.dcm"
+#
+# image = sitk.ReadImage(path)
+# image_array = sitk.GetArrayFromImage(image)
+# image_array = image_array[:, 40:472, 40:472]
+# image_array = np.squeeze(image_array)
+# plt.imshow(image_array)
+# plt.show()
 #
 # lungmask_path = path.replace('CTDATA', 'R231')
 # lungmask_image = sitk.ReadImage(lungmask_path)
