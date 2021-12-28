@@ -185,6 +185,8 @@ def generate_model(model_depth, use_gpu, **kwargs):
     for parma in model.parameters():
         parma.requires_grad = False
 
+
+
     if use_gpu:
         model = model.to('cuda')
 
@@ -193,5 +195,5 @@ def generate_model(model_depth, use_gpu, **kwargs):
 
 if __name__ == '__main__':
     use_gpu = False
-    model = generate_model(121, use_gpu, n_input_channels=20, num_classes=4, drop_rate=0.5)
+    model = generate_model(121, use_gpu, n_input_channels=1, num_classes=4, drop_rate=0.5)
     print(model)

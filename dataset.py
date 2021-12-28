@@ -181,7 +181,7 @@ def load_3d_datapath_label(data_root_path, label_path):
                                                         'appear_index': label_df['appear_index'][i],
                                                         'disappear_index': label_df['disappear_index'][i]})
 
-        return data_path_with_label
+    return data_path_with_label
 
 
 def load_dicom_series(data_dic, cut_pic_num):
@@ -206,13 +206,14 @@ def load_dicom_series(data_dic, cut_pic_num):
         image_array = image_array[start_idx:end_idx]
 
     image_array_cut = []
-    step = int(len(image_array) / 20)
-    index = 0
-    for i in range(20):
-        index = random.sample(range(i * step, (i + 1) * step), 1)
-        image_array_cut.append(image_array[index])
 
-    return image_array
+    # 将每个人的CT图像分成60份，每份中随机抽取一张
+    step = int(len(image_array) / 60)
+    for i in range(60):
+        index = random.sample(range(i * step, (i + 1) * step), 1)
+        image_array_cut.extend(image_array[index])
+
+    return image_array_cut
 
 
 def load_data(data_dic, cut_pic_size, cut_pic_num):
@@ -220,12 +221,17 @@ def load_data(data_dic, cut_pic_size, cut_pic_num):
     if os.path.isfile(path):
         dicom_image = sitk.ReadImage(path)
         image_array = sitk.GetArrayFromImage(dicom_image)
+        if cut_pic_size:
+            # 裁剪成1*432*432
+            pass
     else:
-        image_array = load_dicom_series(data_dic, cut_pic_num)
-
-    if cut_pic_size:
-        # 裁剪成1*432*432
-        image_array = image_array[:, 40:472, 40:472]
+        image_array_3d = load_dicom_series(data_dic, cut_pic_num)
+        if cut_pic_size:
+            pass
+        image_array = []
+        # make the shape of image_array from (depth,high,width) to (channel,depth,high,width)
+        # here channel = 1
+        image_array.append(image_array_3d)
 
     return image_array
 

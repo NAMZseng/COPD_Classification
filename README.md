@@ -34,13 +34,13 @@ DenseNet网络模型的训练与测试，均以每张图片为单位，对病例
 
 ### 3.2 2D-DenseNet训练及测试结果汇总
 
-| 原始CT图像(不做任何修改）                                    | 原始CT图像(筛去非肺区域的图像)                               | 肺实质图像 |
-| ------------------------------------------------------------ | ------------------------------------------------------------ | ---------- |
-| ![image-20211226151211554](https://s2.loli.net/2021/12/26/V4HsIZRbEh8P7dD.png) | ![image-20211226151622051](https://s2.loli.net/2021/12/26/TBRYQcK4GuEe69L.png) |            |
-| ![image-20211226151331768](https://s2.loli.net/2021/12/26/uD3IznJXC2OAxLc.png) | ![image-20211226151240860](https://s2.loli.net/2021/12/26/rqfp587SOBjyvDw.png) |            |
-| ![image-20211226151533422](https://s2.loli.net/2021/12/26/eJbwBmvztLcF7o5.png) | ![image-20211226151631448](https://s2.loli.net/2021/12/26/fdvpx8VBgIENmWt.png) |            |
-| ![image-20211226151546534](https://s2.loli.net/2021/12/26/JRpAqSHG6bKV2ul.png) | ![image-20211226151642239](https://s2.loli.net/2021/12/26/v6jxhutKHMRUwVs.png) |            |
-| ![image-20211226151554973](https://s2.loli.net/2021/12/26/iz5QvNRAkghuSVf.png) | ![image-20211226151658451](https://s2.loli.net/2021/12/26/dMDA4GTnQCPWZ71.png) |            |
+| 原始CT图像(不做任何修改）                                    | 原始CT图像(筛去非肺区域的图像)                               | 肺实质图像                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
+| ![image-20211228190547031](https://s2.loli.net/2021/12/28/tILT35Ay1z8sme9.png) | ![image-20211228190832818](https://s2.loli.net/2021/12/28/Qdkn8wfjmoSNxVg.png) | ![image-20211228181346993](https://s2.loli.net/2021/12/28/DyQSshplZrRb7cC.png) |
+| ![image-20211226151331768](https://s2.loli.net/2021/12/26/uD3IznJXC2OAxLc.png) | ![image-20211226151240860](https://s2.loli.net/2021/12/26/rqfp587SOBjyvDw.png) | ![image-20211228180801651](https://s2.loli.net/2021/12/28/SylRo35sTwnOjGg.png) |
+| ![image-20211226151533422](https://s2.loli.net/2021/12/26/eJbwBmvztLcF7o5.png) | ![image-20211226151631448](https://s2.loli.net/2021/12/26/fdvpx8VBgIENmWt.png) | ![image-20211228175235026](https://s2.loli.net/2021/12/28/OZzl2htcPnNs5oR.png) |
+| ![image-20211226151546534](https://s2.loli.net/2021/12/26/JRpAqSHG6bKV2ul.png) | ![image-20211226151642239](https://s2.loli.net/2021/12/26/v6jxhutKHMRUwVs.png) | ![image-20211228180105421](https://s2.loli.net/2021/12/28/CnlQLXZN5ftWxwq.png) |
+| ![image-20211226151554973](https://s2.loli.net/2021/12/26/iz5QvNRAkghuSVf.png) | ![image-20211226151658451](https://s2.loli.net/2021/12/26/dMDA4GTnQCPWZ71.png) | ![image-20211228175127410](https://s2.loli.net/2021/12/28/CBVcUDK9QIoFLEX.png) |
 
 
 

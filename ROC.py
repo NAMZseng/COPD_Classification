@@ -4,9 +4,7 @@ import pandas as pd
 from sklearn import metrics
 from sklearn.preprocessing import label_binarize
 
-# diabetes = pd.read_excel('./result/test_50epoch_lr_dir_person.xlsx')
-# diabetes = pd.read_excel('./result/test_seg_cut_size_num_precise_50epoch_dir_person.xlsx')
-diabetes = pd.read_excel('./result/test_cut_num_precise_50epoch_dir_person.xlsx')
+diabetes = pd.read_excel('./result/result_2d_densenet_done/test_cut_num_precise_50epoch_dir_person.xlsx')
 
 n_class = 4
 list1 = diabetes['label_gt']
