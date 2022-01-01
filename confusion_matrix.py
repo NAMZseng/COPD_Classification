@@ -5,8 +5,10 @@ from sklearn.metrics import confusion_matrix
 
 from train import count_person_result
 
-count_person_result('./result/test_3d_50epoch_dir.xlsx', './result/test_3d_50epoch_dir_person.xlsx')
-diabetes = pd.read_excel('./result/test_3d_50epoch_dir_person.xlsx')
+# count_person_result('./result/test_3d_50epoch_dir.xlsx', './result/test_3d_50epoch_dir_person.xlsx')
+diabetes = pd.read_excel('./result/test_3d_50epoch_dir.xlsx')
+# diabetes = pd.read_excel('./result/test_3d_100epoch_dir.xlsx')
+# diabetes = pd.read_excel('./result/test_3d_cut_num_precise_100epoch_dir.xlsx')
 
 fact = diabetes['label_gt']
 guess = diabetes['label-pre']

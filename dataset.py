@@ -207,9 +207,9 @@ def load_dicom_series(data_dic, cut_pic_num):
 
     image_array_cut = []
 
-    # 将每个人的CT图像分成60份，每份中随机抽取一张
-    step = int(len(image_array) / 60)
-    for i in range(60):
+    # 将每个人的CT图像分成20份，每份中随机抽取一张
+    step = int(len(image_array) / 20)
+    for i in range(20):
         index = random.sample(range(i * step, (i + 1) * step), 1)
         image_array_cut.extend(image_array[index])
 

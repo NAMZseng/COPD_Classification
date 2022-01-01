@@ -306,10 +306,10 @@ if __name__ == '__main__':
 
     channels = 1
     num_classes = 4  # 4分类
-    drop_rate = 0.5  # 防止过拟合
+    drop_rate = 0.2  # 防止过拟合
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_device
-
+    torch.cuda.empty_cache()
     # 2D DenseNet
     # net = densenet121(channels, num_classes, args.use_gpu, drop_rate)
 
@@ -330,25 +330,25 @@ if __name__ == '__main__':
  --cut_pic_size False \
  --cut_pic_num remain \
  --use_gpu True \
- --batch_size 6 \
- --num_epochs 50 \
- --save_model_name 3d_DenseNet121_50epoch.pkl \
- --result_file ./result/test_3d_50epoch_dir.xlsx \
+ --batch_size 2 \
+ --num_epochs 100 \
+ --save_model_name 3d_DenseNet121_100epoch_0.2.pkl \
+ --result_file ./result/test_3d_100epoch_dir_0.2.xlsx \
  --cuda_device 1 \
- > ./log/out_3d_50epoch.log &
+ > ./log/out_3d_100epoch_0.2.log &
  
  方案二：删去非肺区域的图像,且裁剪图像大小
   nohup python -u train.py \
  --data_root_path /data/zengnanrong/CTDATA/ \
  --cut_pic_size False \
- --cut_pic_num precise \            
+ --cut_pic_num precise \
  --use_gpu True \
- --batch_size 20 \
- --num_epochs 50 \
- --save_model_name DenseNet121_cut_num_precise_50epoch.pkl \
- --result_file ./result/test_cut_num_precise_50epoch_dir.xlsx \
- --cuda_device 1 \
- > ./log/out_cut_num_precise_50epoch.log &
+ --batch_size 2 \
+ --num_epochs 100 \
+ --save_model_name 3d_DenseNet121_cut_num_precise_100epoch_0.2.pkl \
+ --result_file ./result/test_3d_cut_num_precise_100epoch_dir_0.2.xlsx \
+ --cuda_device 0 \
+ > ./log/out_3d_cut_num_precise_100epoch_0.2.log &
  
  方案三：提取肺实质图像_精筛，且裁剪图像大小
   nohup python -u train.py \
@@ -356,12 +356,12 @@ if __name__ == '__main__':
  --cut_pic_size False \
  --cut_pic_num precise \
  --use_gpu True \
- --batch_size 20 \
+ --batch_size 2 \
  --num_epochs 50 \
- --save_model_name DenseNet121_seg_cut_num_precise_50epoch.pkl \
+ --save_model_name 3d_DenseNet121_seg_cut_num_precise_50epoch.pkl \
  --result_file ./result/test_seg_cut_num_precise_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/out_seg_cut_num_precise_50epoch_test.log &
+ > ./log/out_3d_seg_cut_num_precise_50epoch_test.log &
  
  方案四：提取肺实质图像_粗筛，且裁剪图像大小
    nohup python -u train.py \

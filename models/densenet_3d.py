@@ -82,7 +82,7 @@ class DenseNet(nn.Module):
     """
 
     def __init__(self,
-                 n_input_channels=3,
+                 n_input_channels=1,
                  conv1_t_size=7,
                  conv1_t_stride=1,
                  no_max_pool=False,
@@ -90,8 +90,8 @@ class DenseNet(nn.Module):
                  block_config=(6, 12, 24, 16),
                  num_init_features=64,
                  bn_size=4,
-                 drop_rate=0,
-                 num_classes=1000):
+                 drop_rate=0.5,
+                 num_classes=4):
 
         super().__init__()
 
@@ -182,10 +182,8 @@ def generate_model(model_depth, use_gpu, **kwargs):
                          block_config=(6, 12, 64, 48),
                          **kwargs)
 
-    for parma in model.parameters():
-        parma.requires_grad = False
-
-
+    # for parma in model.parameters():
+    #     parma.requires_grad = False
 
     if use_gpu:
         model = model.to('cuda')
