@@ -14,9 +14,19 @@ import pandas as pd
 
 from dataset import load_dicom_series
 
-data_path = '/data/zengnanrong/CTDATA/train_valid/E0001001V1/E0001001V1FC03'
-image = load_dicom_series(data_path, 'rough')
-print(image.shape)
+# data_path = '/data/zengnanrong/CTDATA/train_valid/E0001001V1/E0001001V1FC03'
+# image = load_dicom_series(data_path, 'rough')
+# print(image.shape)
+
+import nibabel as nib
+
+data_path = '/data/LUNG_SEG/train_valid/E0001001V1/E0001001V1FC03'
+nii_path = os.path.join(data_path, os.path.split(data_path)[1] + '.nii')
+image_array = nib.load(nii_path).get_data()
+image_array = image_array.swapaxes(0, 2)
+print(image_array.shape)
+plt.imshow(image_array[200, :, :])
+plt.show()
 
 # list.append([0.3, 0.5, 0.1, 0.1, 0, 1, 'E001'])
 # list.append([0.3, 0.4, 0.1, 0.2, 0, 1, 'E002'])

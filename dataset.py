@@ -4,6 +4,7 @@ import random
 import pandas as pd
 import SimpleITK as sitk
 import numpy as np
+import nibabel as nib
 
 
 def label_preprocess(label_path, output_path):
@@ -187,12 +188,18 @@ def load_3d_datapath_label(data_root_path, label_path):
 def load_dicom_series(data_dic, cut_pic_num):
     path = data_dic['image_path']
 
-    series_IDs = sitk.ImageSeriesReader.GetGDCMSeriesIDs(path)
-    series_file_names = sitk.ImageSeriesReader.GetGDCMSeriesFileNames(path, series_IDs[0])
-    series_reader = sitk.ImageSeriesReader()
-    series_reader.SetFileNames(series_file_names)
-    image3D = series_reader.Execute()
-    image_array = sitk.GetArrayFromImage(image3D)
+    nii_path = os.path.join(path, os.path.split(path)[1] + '.nii')
+    if os.path.exists(nii_path):
+        image_array = nib.load(nii_path).get_data()
+        # nib加载的3d数据格式为height*width*depth, 需要调转成depth*width*height
+        image_array = image_array.swapaxes(0, 2)
+    else:
+        series_IDs = sitk.ImageSeriesReader.GetGDCMSeriesIDs(path)
+        series_file_names = sitk.ImageSeriesReader.GetGDCMSeriesFileNames(path, series_IDs[0])
+        series_reader = sitk.ImageSeriesReader()
+        series_reader.SetFileNames(series_file_names)
+        image3D = series_reader.Execute()
+        image_array = sitk.GetArrayFromImage(image3D)
 
     if cut_pic_num == 'remain':
         pass
@@ -257,7 +264,8 @@ if __name__ == "__main__":
     # label_path = '/data/zengnanrong/label_match_ct_4_range.xlsx'
     # data_root_path = "/data/zengnanrong/CTDATA/test/"
     # label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
-    data_root_path = "/data/zengnanrong/CTDATA/train_valid/"
+    # data_root_path = "/data/zengnanrong/CTDATA/train_valid/"
+    data_root_path = "/data/LUNG_SEG/train_valid/"
     label_path = '/data/zengnanrong/label_match_ct_4_range_train_valid.xlsx'
     # data = load_2d_datapath_label(data_root_path, label_path, False, False)
     data = load_3d_datapath_label(data_root_path, label_path)

@@ -331,11 +331,11 @@ if __name__ == '__main__':
  --cut_pic_num remain \
  --use_gpu True \
  --batch_size 2 \
- --num_epochs 100 \
- --save_model_name 3d_DenseNet121_100epoch_0.2.pkl \
- --result_file ./result/test_3d_100epoch_dir_0.2.xlsx \
+ --num_epochs 50 \
+ --save_model_name 3d_DenseNet121_50epoch_0.2_step.pkl \
+ --result_file ./result/test_3d_50epoch_dir_0.2_step.xlsx \
  --cuda_device 1 \
- > ./log/out_3d_100epoch_0.2.log &
+ > ./log/out_3d_50epoch_0.2_step.log &
  
  方案二：删去非肺区域的图像,且裁剪图像大小
   nohup python -u train.py \
@@ -344,35 +344,22 @@ if __name__ == '__main__':
  --cut_pic_num precise \
  --use_gpu True \
  --batch_size 2 \
- --num_epochs 100 \
- --save_model_name 3d_DenseNet121_cut_num_precise_100epoch_0.2.pkl \
- --result_file ./result/test_3d_cut_num_precise_100epoch_dir_0.2.xlsx \
- --cuda_device 0 \
- > ./log/out_3d_cut_num_precise_100epoch_0.2.log &
+ --num_epochs 50 \
+ --save_model_name 3d_DenseNet121_cut_num_precise_50epoch_0.2_step.pkl \
+ --result_file ./result/test_3d_cut_num_precise_50epoch_dir_0.2_step.xlsx \
+ --cuda_device 1 \
+ > ./log/out_3d_cut_num_precise_50epoch_0.2_step.log &
  
  方案三：提取肺实质图像_精筛，且裁剪图像大小
   nohup python -u train.py \
- --data_root_path /data/zengnanrong/LUNG_SEG/ \
+ --data_root_path /data/LUNG_SEG/ \
  --cut_pic_size False \
  --cut_pic_num precise \
  --use_gpu True \
  --batch_size 2 \
  --num_epochs 50 \
- --save_model_name 3d_DenseNet121_seg_cut_num_precise_50epoch.pkl \
- --result_file ./result/test_seg_cut_num_precise_50epoch_dir.xlsx \
+ --save_model_name 3d_DenseNet121_seg_cut_num_precise_50epoch_0.2_step.pkl \
+ --result_file ./result/test_seg_cut_num_precise_50epoch_dir_0.2_step.xlsx \
  --cuda_device 1 \
- > ./log/out_3d_seg_cut_num_precise_50epoch_test.log &
- 
- 方案四：提取肺实质图像_粗筛，且裁剪图像大小
-   nohup python -u train.py \
- --data_root_path /data/zengnanrong/LUNG_SEG/ \
- --cut_pic_size False \
- --cut_pic_num rough \
- --use_gpu True \
- --batch_size 20 \
- --num_epochs 50 \
- --save_model_name DenseNet121_seg_cut_num_rough_50epoch.pkl \
- --result_file ./result/test_seg_cut_num_rough_50epoch_dir.xlsx \
- --cuda_device 1 \
- > ./log/out_seg_cut_num_rough_50epoch.log &
+ > ./log/out_3d_seg_cut_num_precise_50epoch_0.2_step.log &
 """
