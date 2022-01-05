@@ -310,6 +310,7 @@ if __name__ == '__main__':
 
     os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_device
     torch.cuda.empty_cache()
+
     # 2D DenseNet
     # net = densenet121(channels, num_classes, args.use_gpu, drop_rate)
 
@@ -337,7 +338,7 @@ if __name__ == '__main__':
  --cuda_device 1 \
  > ./log/out_3d_50epoch_0.2_step.log &
  
- 方案二：删去非肺区域的图像,且裁剪图像大小
+ 方案二：删去非肺区域的图像（精筛）
   nohup python -u train.py \
  --data_root_path /data/zengnanrong/CTDATA/ \
  --cut_pic_size False \
@@ -350,7 +351,20 @@ if __name__ == '__main__':
  --cuda_device 1 \
  > ./log/out_3d_cut_num_precise_50epoch_0.2_step.log &
  
- 方案三：提取肺实质图像_精筛，且裁剪图像大小
+  方案三：筛去前后各1/6的图像（粗筛）
+  nohup python -u train.py \
+ --data_root_path /data/zengnanrong/CTDATA/ \
+ --cut_pic_size False \
+ --cut_pic_num rough \
+ --use_gpu True \
+ --batch_size 2 \
+ --num_epochs 50 \
+ --save_model_name 3d_DenseNet121_cut_num_rough_50epoch_0.2_step.pkl \
+ --result_file ./result/test_3d_cut_num_rough_50epoch_dir_0.2_step.xlsx \
+ --cuda_device 1 \
+ > ./log/out_3d_cut_num_rough_50epoch_0.2_step.log &
+ 
+ 方案四：提取肺实质图像
   nohup python -u train.py \
  --data_root_path /data/LUNG_SEG/ \
  --cut_pic_size False \
