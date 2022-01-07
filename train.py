@@ -262,13 +262,13 @@ if __name__ == '__main__':
     parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/CTDATA/', help='输入数据的根路径')
     parser.add_argument('--cut_pic_size', type=bool, default=False, help='是否将图片裁剪为432*432')
     parser.add_argument('--cut_pic_num', type=str, choices=['remain', 'precise', 'rough'], default='remain',
-                        help='是否只截去不含肺区域的图像，remain:不截，保留原始图像的个数，precise:精筛，rough:初筛，直接截去上下各1/6的图像数量')
+                        help='是否只截去不含肺区域的图像，remain:不截，保留原始图像的个数，precise:精筛，rough:粗筛，直接截去上下各1/6的图像数量')
     parser.add_argument('--use_gpu', type=bool, default=True, help='是否只使用GPU')
-    parser.add_argument('--batch_size', type=int, default=5, help='batch size, 2d:20, 3d:1')
+    parser.add_argument('--batch_size', type=int, default=2, help='batch size, 2d:20, 3d:2')
     parser.add_argument('--num_epochs', type=int, default=50, help='num of epochs')
-    parser.add_argument('--save_model_name', type=str, default='3d_DenseNet121_50epoch.pkl',
+    parser.add_argument('--save_model_name', type=str, default='DenseNet121_debug.pkl',
                         help='model save name')
-    parser.add_argument('--result_file', type=str, default='./result/test_3D_50epoch_dir.xlsx',
+    parser.add_argument('--result_file', type=str, default='./result/test_debug_50epoch_dir.xlsx',
                         help='test result file path')
     parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='1', help='使用哪块GPU')
 
@@ -333,10 +333,10 @@ if __name__ == '__main__':
  --use_gpu True \
  --batch_size 2 \
  --num_epochs 50 \
- --save_model_name 3d_DenseNet121_50epoch_0.2_step.pkl \
- --result_file ./result/test_3d_50epoch_dir_0.2_step.xlsx \
+ --save_model_name 3d_DenseNet121_50epoch_0.2_block.pkl \
+ --result_file ./result/test_3d_50epoch_dir_0.2_block.xlsx \
  --cuda_device 1 \
- > ./log/out_3d_50epoch_0.2_step.log &
+ > ./log/out_3d_50epoch_0.2_block.log &
  
  方案二：删去非肺区域的图像（精筛）
   nohup python -u train.py \
@@ -346,10 +346,10 @@ if __name__ == '__main__':
  --use_gpu True \
  --batch_size 2 \
  --num_epochs 50 \
- --save_model_name 3d_DenseNet121_cut_num_precise_50epoch_0.2_step.pkl \
- --result_file ./result/test_3d_cut_num_precise_50epoch_dir_0.2_step.xlsx \
+ --save_model_name 3d_DenseNet121_cut_num_precise_50epoch_0.2_block.pkl \
+ --result_file ./result/test_3d_cut_num_precise_50epoch_dir_0.2_block.xlsx \
  --cuda_device 1 \
- > ./log/out_3d_cut_num_precise_50epoch_0.2_step.log &
+ > ./log/out_3d_cut_num_precise_50epoch_0.2_block.log &
  
   方案三：筛去前后各1/6的图像（粗筛）
   nohup python -u train.py \
@@ -359,10 +359,10 @@ if __name__ == '__main__':
  --use_gpu True \
  --batch_size 2 \
  --num_epochs 50 \
- --save_model_name 3d_DenseNet121_cut_num_rough_50epoch_0.2_step.pkl \
- --result_file ./result/test_3d_cut_num_rough_50epoch_dir_0.2_step.xlsx \
+ --save_model_name 3d_DenseNet121_cut_num_rough_50epoch_0.2_block.pkl \
+ --result_file ./result/test_3d_cut_num_rough_50epoch_dir_0.2_block.xlsx \
  --cuda_device 1 \
- > ./log/out_3d_cut_num_rough_50epoch_0.2_step.log &
+ > ./log/out_3d_cut_num_rough_50epoch_0.2_block.log &
  
  方案四：提取肺实质图像
   nohup python -u train.py \
@@ -372,8 +372,8 @@ if __name__ == '__main__':
  --use_gpu True \
  --batch_size 2 \
  --num_epochs 50 \
- --save_model_name 3d_DenseNet121_seg_cut_num_precise_50epoch_0.2_step.pkl \
- --result_file ./result/test_seg_cut_num_precise_50epoch_dir_0.2_step.xlsx \
+ --save_model_name 3d_DenseNet121_seg_cut_num_precise_50epoch_0.2_block.pkl \
+ --result_file ./result/test_3d_seg_cut_num_precise_50epoch_dir_0.2_block.xlsx \
  --cuda_device 1 \
- > ./log/out_3d_seg_cut_num_precise_50epoch_0.2_step.log &
+ > ./log/out_3d_seg_cut_num_precise_50epoch_0.2_block.log &
 """
