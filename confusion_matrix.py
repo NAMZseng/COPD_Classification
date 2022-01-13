@@ -5,20 +5,28 @@ from sklearn.metrics import confusion_matrix
 
 from train import count_person_result
 
-# count_person_result('./result/test_3d_50epoch_dir.xlsx', './result/test_3d_50epoch_dir_person.xlsx')
-diabetes = pd.read_excel('./result/test_3d_50epoch_dir.xlsx')
-# diabetes = pd.read_excel('./result/test_3d_100epoch_dir.xlsx')
-# diabetes = pd.read_excel('./result/test_3d_cut_num_precise_100epoch_dir.xlsx')
+# count_person_result('./result/result_2d_densenet_done/test_multi_instance_30epoch_dir.xlsx',
+#                     './result/result_2d_densenet_done/test_multi_instance_30epoch_dir_person.xlsx')
+# diabetes = pd.read_excel('./result/result_2d_densenet_done/test_50epoch_lr_dir_person.xlsx')
+# diabetes = pd.read_excel('./result/result_2d_densenet_done/test_multi_instance_30epoch_dir_person.xlsx')
+# diabetes = pd.read_excel('./result/result_2d_densenet_done/test_cut_num_precise_50epoch_dir_person.xlsx')
+# diabetes = pd.read_excel('./result/result_2d_densenet_done/test_seg_cut_num_precise_50epoch_dir_2_person.xlsx')
+diabetes = pd.read_excel('./result/test_3d_50epoch_dir_0.2_step.xlsx')
+# diabetes = pd.read_excel('./result/test_3d_cut_num_precise_50epoch_dir_0.2_step_10valid_2.xlsx')
+# diabetes = pd.read_excel('./result/test_3d_seg_cut_num_precise_50epoch_dir_0.2_step_1.xlsx')
+# diabetes = pd.read_excel('./result/test_3d_rough_multi_50epoch_dir_random.xlsx')
+# diabetes = pd.read_excel('./result/test_3d_seg_rough_multi_50epoch_dir_random.xlsx')
 
 fact = diabetes['label_gt']
 guess = diabetes['label-pre']
 
-print("每个类别的精确率和召回率：\n", classification_report(fact, guess))
+print("每个类别的精确率和召回率：\n", classification_report(y_true=fact, y_pred=guess))
 
 # 混淆矩阵
 classes = list(set(fact))
 classes.sort()
-confusion = confusion_matrix(guess, fact)
+confusion = confusion_matrix(y_true=fact, y_pred=guess)
+print(confusion)
 plt.imshow(confusion, cmap=plt.cm.Blues)
 indices = range(len(confusion))
 plt.xticks(indices, classes)
@@ -28,6 +36,6 @@ plt.xlabel('Predicted label')
 plt.ylabel('True label')
 for first_index in range(len(confusion)):
     for second_index in range(len(confusion[first_index])):
-        plt.text(first_index, second_index, confusion[first_index][second_index])
+        plt.text(second_index, first_index, confusion[first_index][second_index])
 
 plt.show()
