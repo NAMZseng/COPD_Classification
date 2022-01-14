@@ -10,3 +10,4 @@ TIME_NOW = datetime.now().strftime(DATE_FORMAT)
 
 # tensorboard log dir
 LOG_DIR = 'tensorboard'
+RESULT_DIR = 'result'

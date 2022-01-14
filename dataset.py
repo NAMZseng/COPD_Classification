@@ -214,24 +214,33 @@ def load_dicom_series(data_dic, cut_pic_num):
 
     image_array_cut = []
 
-    # 抽法一：将每个人的CT图像分成20份，每份中随机抽取一张
-    # step = int(len(image_array) / 20)
-    # index = random.sample(range(0, step), 1)
-    # index = index[0]
-    # image_array_cut.append(image_array[index])
-    # for i in range(1, 20):
-    #     index = index + step
+    cut_slice_num = 20
+
+    # 抽法一：将每个人的CT图像分成cut_slice_num份，每份中等距抽取一张
+    step = int(len(image_array) / cut_slice_num)
+    index = random.sample(range(0, step), 1)
+    index = index[0]
+    image_array_cut.append(image_array[index])
+    for i in range(1, cut_slice_num):
+        index = index + step
+        image_array_cut.append(image_array[index])
+
+    # 抽法二：每例病人的数据分成10块，每次随机抽取一块，再从这块取cut_slice_num张图用做该轮训练
+    # block_index = random.sample(range(1, 11), 1)
+    # block_index = block_index[0]
+    #
+    # block_size = int(len(image_array) / 10)
+    # slice_indexes = random.sample(range(block_size * (block_index - 1), block_size * block_index), cut_slice_num)
+    # slice_indexes.sort()
+    # for index in slice_indexes:
     #     image_array_cut.append(image_array[index])
 
-    # 抽法二：每例病人的数据分成10块，每次随机抽取一块，再从这块取20张图用做该轮训练
-    block_index = random.sample(range(1, 11), 1)
-    block_index = block_index[0]
-
-    block_size = int(len(image_array) / 10)
-    slice_indexes = random.sample(range(block_size * (block_index - 1), block_size * block_index), 20)
-    slice_indexes.sort()
-    for index in slice_indexes:
-        image_array_cut.append(image_array[index])
+    # 抽法三：多实例，将每个人的CT图像分成cut_slice_num份，每份中随机抽取一张
+    # step = int(len(image_array) / cut_slice_num)
+    # for i in range(0, cut_slice_num):
+    #     index = random.sample(range(i * step, (i + 1) * step), 1)
+    #     index = index[0]
+    #     image_array_cut.append(image_array[index])
 
     return image_array_cut
 

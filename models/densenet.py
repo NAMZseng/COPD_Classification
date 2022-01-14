@@ -21,5 +21,5 @@ def densenet121(channels, out_features, use_gpu, drop_rate):
 
 
 if __name__ == '__main__':
-    net = densenet121(1, 4, False, False, 0.5)
+    net = densenet121(1, 4, False, 0.5)
     print(net)

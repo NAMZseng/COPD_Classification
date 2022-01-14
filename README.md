@@ -29,44 +29,8 @@ DenseNet网络模型的训练与测试，均以每张图片为单位，对病例
 ### 3.1 训练参数
 
 | **数据量** | **train: valid: test** | **Batch size** | **Input size** | **epochs** | **Drop_rate** |
-| ---------- | ---------------------- | -------------- | -------------- | ---------- | ------------- |
-| 468例      | 6：1：3                | 20             | 512*512        | 50         | 0.5           |
+|---------| ---------------------- | -------------- | -------------- | ---------- | ------------- |
+| 468例    | 6：1：3                | 20             | 512*512        | 50         | 0.5           |
 
-### 3.2 2D-DenseNet训练及测试结果汇总
+### 3.2 结果汇总
 
-| 原始CT图像(不做任何修改）                                    | 原始CT图像(筛去非肺区域的图像)                               | 肺实质图像                                                   |
-| ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| ![image-20211228190547031](https://s2.loli.net/2021/12/28/tILT35Ay1z8sme9.png) | ![image-20211228190832818](https://s2.loli.net/2021/12/28/Qdkn8wfjmoSNxVg.png) | ![image-20211228181346993](https://s2.loli.net/2021/12/28/DyQSshplZrRb7cC.png) |
-| ![image-20211226151331768](https://s2.loli.net/2021/12/26/uD3IznJXC2OAxLc.png) | ![image-20211226151240860](https://s2.loli.net/2021/12/26/rqfp587SOBjyvDw.png) | ![image-20211228180801651](https://s2.loli.net/2021/12/28/SylRo35sTwnOjGg.png) |
-| ![image-20211226151533422](https://s2.loli.net/2021/12/26/eJbwBmvztLcF7o5.png) | ![image-20211226151631448](https://s2.loli.net/2021/12/26/fdvpx8VBgIENmWt.png) | ![image-20211228175235026](https://s2.loli.net/2021/12/28/OZzl2htcPnNs5oR.png) |
-| ![image-20211226151546534](https://s2.loli.net/2021/12/26/JRpAqSHG6bKV2ul.png) | ![image-20211226151642239](https://s2.loli.net/2021/12/26/v6jxhutKHMRUwVs.png) | ![image-20211228180105421](https://s2.loli.net/2021/12/28/CnlQLXZN5ftWxwq.png) |
-| ![image-20211226151554973](https://s2.loli.net/2021/12/26/iz5QvNRAkghuSVf.png) | ![image-20211226151658451](https://s2.loli.net/2021/12/26/dMDA4GTnQCPWZ71.png) | ![image-20211228175127410](https://s2.loli.net/2021/12/28/CBVcUDK9QIoFLEX.png) |
-
-
-
-## 4关于DenseNet模型训练的一些问题
-
-- [x]  **问题一、训练过拟合**
-
-我们对CT数据不进行任何处理，进行了一次训练。训练后发现尽管Train Accuracy达到了0.839，但Test Accuracy仅有0.418，不到Train Accuracy的一半，而且valid的Acc与Loss曲线大幅振荡，所有我们推测可能是模型训练过拟合。于是我修改了drop_rate与learning rate，下表为修改后的参数对比。
-
-**训练参数**
-
-|            | batch_size | epochs | drop_rate | learning rate                                   |
-| ---------- | ---------- | ------ | --------- | ----------------------------------------------- |
-| 第一次训练 | 20         | 50     | 0         | torch.optim.Adam(net.parameters(), lr=1e-3)     |
-| 第二次训练 | 20         | 50     | **0.5**   | torch.optim.Adam(net.parameters(), **lr=3e-4**) |
-
-- [x]  **问题二、3D DenseNet数据输入**
-
-目前我在GitHub找到了一个3D DenseNet的实现代码：[3D-ResNets-PyTorch/densenet.py at master · kenshohara/3D-ResNets-PyTorch (github.com)](https://github.com/kenshohara/3D-ResNets-PyTorch/blob/master/models/densenet.py)
-
-以及用该代码实现阿兹海默症四分类的论文：[Ruiz J., Mahmud M., Modasshir M., Shamim Kaiser M., Alzheimer’s Disease Neuroimaging Initiative,"3D DenseNet Ensemble in 4-Way Classification of Alzheimer’s Disease",Brain Informatics. BI 2020.](https://doi.org/10.1007/978-3-030-59277-6_8)
-
-不过该论文并没有具体说明如何进行网络的3D数据输入，且在其公开的代码中（[JuanRuiz135/3D-Densenet-Alzheimer: 3D Densenet Ensemble applied in 4-way classification of Alzheimer's Disease (BI 2020) (github.com)](https://github.com/JuanRuiz135/3D-Densenet-Alzheimer)），将网络的n_input_channels设为1，这和我们目前2D DenseNet的channels是一样的，所以我就比较困惑。
-
-3D DenseNet的输入应该是一个3维的形式，如512x512xN。最开始开会的时候，记得师兄提到过，由于每个病例的N是不统一的，有的是600多张，有的是500多张，所有需要将N统一成N'。那统一后的 512x512xN'，是一起输入吗？现在我们二维的网络训练，batch_size是20，相当于一次输入512x512x20，但N'肯定比20要大的多，512x512xN'一起输入的话应该会内存不足。
-
-或者是参考脑组用3D Unet分割的方法，先将每例病人的512x512xN'数据进行**切块**，如切成 m * m * n的形状，将每块放入3D网络中训练，最后将每例病人所有块的预测值进行求和取平均，得到每例病人在4个COPD等级上最终的预测结果，这种方式是否可行？ 
-
-**解决思路**：裁剪压缩病人的3D图像数据尺寸。从图像尺寸上，对每张图像进行压缩（相邻区域取平均），512x512压缩成256x256；在图像数量上，进行分层抽样，最后每个病人取20张图像。

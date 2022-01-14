@@ -1,0 +1,89 @@
+  -----------------------------------2d-3- running 15499 13:52------------------------------------
+  nohup python -u train.py \
+  --net_dim 3D \
+ --data_root_path /data/zengnanrong/CTDATA/ \
+ --cut_pic_size False \
+ --cut_pic_num rough \
+ --use_gpu True \
+ --batch_size 20 \
+ --num_epochs 50 \
+ --drop_rate 0.2 \
+ --save_model_name DenseNet121_cut_num_rough_50epoch_0.2.pkl \
+ --result_file test_cut_num_rough_50epoch_0.2_dir.xlsx \
+ --cuda_device 1 \
+ > ./log/2D_densenet/out_cut_num_rough_50epoch_0.2.log &
+
+-------------------------------------3d-2 done------------------------------------
+   nohup python -u train.py \
+ --net_dim 3D \
+ --data_root_path /data/zengnanrong/CTDATA/ \
+ --cut_pic_size False \
+ --cut_pic_num precise \
+ --use_gpu True \
+ --batch_size 2 \
+ --num_epochs 50 \
+ --drop_rate 0.2 \
+ --save_model_name 3d_DenseNet121_cut_num_precise_50epoch_0.2_step_10valid.pkl \
+ --result_file test_3d_cut_num_precise_50epoch_dir_0.2_step_10valid_1.xlsx \
+ --cuda_device 1 \
+ > ./log/out_3d_cut_num_precise_50epoch_0.2_step_10valid_test_1.log &
+-------------------------------------3d-3 done-----------------------------------
+   nohup python -u train.py \
+ --net_dim 3D \
+ --data_root_path /data/zengnanrong/CTDATA/ \
+ --cut_pic_size False \
+ --cut_pic_num rough \
+ --use_gpu True \
+ --batch_size 2 \
+ --num_epochs 50 \
+ --drop_rate 0.2 \
+ --save_model_name 3d_DenseNet121_cut_num_rough_50epoch_0.2_step_5valid.pkl \
+ --result_file test_3d_cut_num_rough_50epoch_dir_0.2_step_5valid.xlsx \
+ --cuda_device 1 \
+ > ./log/out_3d_cut_num_rough_50epoch_0.2_step_5valid.log &
+
+--------------------------------------3d-4-done----------------------------------
+   nohup python -u train.py \
+ --net_dim 3D \
+ --data_root_path /data/zengnanrong/CTDATA/ \
+ --cut_pic_size False \
+ --cut_pic_num rough \
+ --use_gpu True \
+ --batch_size 2 \
+ --num_epochs 50 \
+ --drop_rate 0.2 \
+ --save_model_name 3d_DenseNet121_rough_multi_50epoch_random.pkl \
+ --result_file test_3d_rough_multi_50epoch_dir_random.xlsx \
+ --cuda_device 1 \
+ > ./log/out_3d_rough_multi_50epoch_dir_random.log &
+
+ --------------------------------------3d-5 done ------------------------------------
+   nohup python -u train.py \
+ --net_dim 3D \
+ --data_root_path /data/LUNG_SEG/ \
+ --cut_pic_size False \
+ --cut_pic_num precise \
+ --use_gpu True \
+ --batch_size 2 \
+ --num_epochs 50 \
+ --drop_rate 0.2 \
+ --save_model_name 3d_DenseNet121_seg_cut_num_precise_50epoch_0.2_step.pkl \
+ --result_file test_3d_seg_cut_num_precise_50epoch_dir_0.2_step_1.xlsx \
+ --cuda_device 1 \
+ > ./log/out_3d_seg_cut_num_precise_50epoch_0.2_step_test_1.log &
+
+--------------------------------------3d-6-done------------------------------------
+   nohup python -u train.py \
+ --net_dim 3D \
+ --data_root_path /data/LUNG_SEG/ \
+ --cut_pic_size False \
+ --cut_pic_num rough \
+ --use_gpu True \
+ --batch_size 2 \
+ --num_epochs 50 \
+ --drop_rate 0.2 \
+ --save_model_name 3d_DenseNet121_seg_rough_multi_50epoch_random.pkl \
+ --result_file test_3d_seg_rough_multi_50epoch_dir_random.xlsx \
+ --cuda_device 0 \
+ > ./log/out_3d_seg_rough_multi_50epoch_dir_random.log &
+
