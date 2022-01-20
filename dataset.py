@@ -5,6 +5,9 @@ import pandas as pd
 import SimpleITK as sitk
 import numpy as np
 import nibabel as nib
+import cv2 as cv
+
+from lungmask.main import get_ct_dirs
 
 
 def label_preprocess(label_path, output_path):
@@ -49,13 +52,7 @@ def find_lung_range(label_path, data_root_path, output_path):
     :param data_root_path:
     :return:
     """
-    ct_dir = []
-    for item in os.listdir(data_root_path):
-        if os.path.isdir(os.path.join(data_root_path, item)):
-            ct_dir.append(item)
-
-    # 确保与label文件中的名称顺序对应
-    ct_dir.sort()
+    ct_dir = get_ct_dirs(data_root_path)
 
     label_df = pd.read_excel(label_path, sheet_name='Sheet1')
     label_df.insert(label_df.shape[1], 'appear_index', 0)
@@ -97,13 +94,7 @@ def load_2d_datapath_label(data_root_path, label_path, cut_pic_num):
     :param cut: 是否截取包含肺区域的图像
     :return:
     """
-    ct_dir = []
-    for item in os.listdir(data_root_path):
-        if os.path.isdir(os.path.join(data_root_path, item)):
-            ct_dir.append(item)
-
-    # 确保与label文件中的名称顺序对应
-    ct_dir.sort()
+    ct_dir = get_ct_dirs(data_root_path)
 
     label_df = pd.read_excel(label_path, sheet_name='Sheet1')
 
@@ -155,13 +146,7 @@ def load_3d_datapath_label(data_root_path, label_path):
     :param label_path:
     :return:
     """
-    ct_dir = []
-    for item in os.listdir(data_root_path):
-        if os.path.isdir(os.path.join(data_root_path, item)):
-            ct_dir.append(item)
-
-    # 确保与label文件中的名称顺序对应
-    ct_dir.sort()
+    ct_dir = get_ct_dirs(data_root_path)
 
     label_df = pd.read_excel(label_path, sheet_name='Sheet1')
 
@@ -214,7 +199,7 @@ def load_dicom_series(data_dic, cut_pic_num):
 
     image_array_cut = []
 
-    cut_slice_num = 20
+    cut_slice_num = 100
 
     # 抽法一：将每个人的CT图像分成cut_slice_num份，每份中等距抽取一张
     step = int(len(image_array) / cut_slice_num)
@@ -251,16 +236,20 @@ def load_data(data_dic, cut_pic_size, cut_pic_num):
         dicom_image = sitk.ReadImage(path)
         image_array = sitk.GetArrayFromImage(dicom_image)
         if cut_pic_size:
-            # 裁剪成1*432*432
             pass
     else:
         image_array_3d = load_dicom_series(data_dic, cut_pic_num)
         if cut_pic_size:
-            pass
-        image_array = []
+            for i in range(len(image_array_3d)):
+                image = image_array_3d[i]
+                # cut to 400*400
+                image_array_3d[i] = image[56:456, 56:456]
+                # compress to 200*200
+                image_array_3d[i] = cv.resize(image_array_3d[i], (200, 200), interpolation=cv.INTER_AREA)
+
         # make the shape of image_array from (depth,high,width) to (channel,depth,high,width)
         # here channel = 1
-        image_array.append(image_array_3d)
+        image_array = [image_array_3d]
 
     return image_array
 

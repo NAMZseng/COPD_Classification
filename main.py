@@ -19,13 +19,21 @@ from dataset import load_dicom_series
 # print(image.shape)
 
 import nibabel as nib
+import cv2 as cv
 
 data_path = '/data/LUNG_SEG/train_valid/E0001001V1/E0001001V1FC03'
 nii_path = os.path.join(data_path, os.path.split(data_path)[1] + '.nii')
 image_array = nib.load(nii_path).get_data()
 image_array = image_array.swapaxes(0, 2)
-print(image_array.shape)
-plt.imshow(image_array[200, :, :])
+image = image_array[200, :, :]
+# plt.imshow(image)
+# plt.show()
+image_cut = image[56:456, 56:456]
+# plt.imshow(image_cut)
+# plt.show()
+image_resize = cv.resize(image_cut, (200, 200), interpolation=cv.INTER_AREA)
+# plt.imshow(image_cut)
+plt.imshow(image_resize)
 plt.show()
 
 # list.append([0.3, 0.5, 0.1, 0.1, 0, 1, 'E001'])

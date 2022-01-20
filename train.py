@@ -169,7 +169,7 @@ def train(net, net_dim, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_n
 def test(net_dim, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, save_model_name, result_file):
     phase = 'test'
 
-    net = torch.load(os.path.join(CHECKPOINT_PATH, save_model_name))
+    net = torch.load(os.path.join(CHECKPOINT_PATH, net_dim + '_densenet', save_model_name))
     net = net.eval()
 
     with torch.no_grad():
@@ -287,11 +287,11 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=2, help='batch size, 2d:20, 3d:2')
     parser.add_argument('--num_epochs', type=int, default=50, help='num of epochs')
     parser.add_argument('--drop_rate', type=float, default=0.2, help='dropout rate,2D:0.5，3D：0.2')
-    parser.add_argument('--save_model_name', type=str, default='DenseNet121_debug.pkl',
+    parser.add_argument('--save_model_name', type=str, default='3d_DenseNet121_50epoch_0.2_step.pkl',
                         help='model save name')
     parser.add_argument('--result_file', type=str, default='test_debug_50epoch_dir.xlsx',
                         help='test result filename')
-    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='1', help='使用哪块GPU')
+    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='0', help='使用哪块GPU')
 
     args_in = sys.argv[1:]
     args = parser.parse_args(args_in)

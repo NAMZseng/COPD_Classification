@@ -149,13 +149,52 @@ def segement_dcms(data_dir_name):
                 logging.info(f'Save result to: {seg_path}')
 
 
+def count_laa(data_dir_name):
+    """
+    计算肺气肿区（HU值小于-950）占肺实质区域的比例，即LAA
+    :param data_dir_name:
+    :return:
+    """
+    ct_root_path = "/data/zengnanrong/LUNG_SEG/train_valid"
+    mask_root_path = "/data/zengnanrong/R231/"
+
+    emphysema_pixel_num = 0
+    lung_pixel_num = 0
+
+    path = os.path.join(ct_root_path, data_dir_name)
+    for root, dirs, files in os.walk(path):
+        for item in files:
+            if '.dcm' in item.lower():
+                ct_path = os.path.join(root, item)
+                mask_path = ct_path.replace(ct_root_path, mask_root_path)
+
+                ct_image = sitk.ReadImage(ct_path)
+                ct_image_array = np.squeeze(sitk.GetArrayFromImage(ct_image))
+                mask_image = sitk.ReadImage(mask_path)
+                mask_image_array = np.squeeze(sitk.GetArrayFromImage(mask_image))
+
+                height = ct_image_array.shape[0]
+                width = ct_image_array.shape[1]
+
+                for h in range(height):
+                    for w in range(width):
+                        if mask_image_array[h][w] > 0:  # 肺区域
+                            lung_pixel_num = lung_pixel_num + 1
+                            if ct_image_array[h][w] <= -950:
+                                emphysema_pixel_num = emphysema_pixel_num + 1
+
+    laa = format(emphysema_pixel_num / lung_pixel_num, '.4f')
+    print(f'{data_dir_name},{emphysema_pixel_num},{lung_pixel_num},{laa}')
+
+
 if __name__ == "__main__":
-    input_root_path = "/data/zengnanrong/CTDATA/"
+    input_root_path = "/data/zengnanrong/LUNG_SEG/train_valid"
 
     ct_dir = get_ct_dirs(input_root_path)
 
     pool = Pool()
     # pool.map(mask_dcms, ct_dir)
-    pool.map(segement_dcms, ct_dir)
+    # pool.map(segement_dcms, ct_dir)
+    pool.map(count_laa, ct_dir)
     pool.close()
     pool.join()
