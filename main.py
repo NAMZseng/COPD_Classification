@@ -21,20 +21,20 @@ from dataset import load_dicom_series
 import nibabel as nib
 import cv2 as cv
 
-data_path = '/data/LUNG_SEG/train_valid/E0001001V1/E0001001V1FC03'
-nii_path = os.path.join(data_path, os.path.split(data_path)[1] + '.nii')
-image_array = nib.load(nii_path).get_data()
-image_array = image_array.swapaxes(0, 2)
-image = image_array[200, :, :]
-# plt.imshow(image)
+# data_path = '/data/LUNG_SEG/train_valid/E0001001V1/E0001001V1FC03'
+# nii_path = os.path.join(data_path, os.path.split(data_path)[1] + '.nii')
+# image_array = nib.load(nii_path).get_data()
+# image_array = image_array.swapaxes(0, 2)
+# image = image_array[200, :, :]
+# # plt.imshow(image)
+# # plt.show()
+# image_cut = image[56:456, 56:456]
+# # plt.imshow(image_cut)
+# # plt.show()
+# image_resize = cv.resize(image_cut, (200, 200), interpolation=cv.INTER_AREA)
+# # plt.imshow(image_cut)
+# plt.imshow(image_resize)
 # plt.show()
-image_cut = image[56:456, 56:456]
-# plt.imshow(image_cut)
-# plt.show()
-image_resize = cv.resize(image_cut, (200, 200), interpolation=cv.INTER_AREA)
-# plt.imshow(image_cut)
-plt.imshow(image_resize)
-plt.show()
 
 # list.append([0.3, 0.5, 0.1, 0.1, 0, 1, 'E001'])
 # list.append([0.3, 0.4, 0.1, 0.2, 0, 1, 'E002'])
@@ -67,14 +67,14 @@ plt.show()
 # print(data_path_with_label[0])
 # print(data_path_with_label[0][0]['label'])
 
-# path = "/data/zengnanrong/R231/E0001524V2/E0001524V2FC01/1.2.392.200036.9116.2.5.1.48.1215508268.1324612419.245679.dcm"
-#
-# image = sitk.ReadImage(path)
-# image_array = sitk.GetArrayFromImage(image)
-# image_array = image_array[:, 40:472, 40:472]
-# image_array = np.squeeze(image_array)
-# plt.imshow(image_array)
-# plt.show()
+path = "/data/zengnanrong/R231/E0001524V2/E0001524V2FC01/1.2.392.200036.9116.2.5.1.48.1215508268.1324612419.245679.dcm"
+
+image = sitk.ReadImage(path)
+image_array = sitk.GetArrayFromImage(image)
+image_array = image_array[:, 40:472, 40:472]
+image_array = np.squeeze(image_array)
+plt.imshow(image_array)
+plt.show()
 #
 # lungmask_path = path.replace('CTDATA', 'R231')
 # lungmask_image = sitk.ReadImage(lungmask_path)

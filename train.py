@@ -9,7 +9,7 @@ from torch.autograd import Variable
 from dataset import load_2d_datapath_label, load_data, load_3d_datapath_label
 from datetime import datetime
 from models.densenet import densenet121
-from models.densenet_3d import generate_model
+from models import densenet_3d, swin_tranformer
 
 from torch.utils.tensorboard import SummaryWriter
 from global_settings import CHECKPOINT_PATH, LOG_DIR, TIME_NOW, RESULT_DIR
@@ -46,7 +46,7 @@ def next_batch(batch_size, index_in_total, data, cut_pic_size, cut_pic_num, phas
     return batch_images, batch_labels, batch_dirs, index_in_total
 
 
-def train(net, net_dim, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_num, batch_size, num_epochs, optimizer,
+def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_num, batch_size, num_epochs, optimizer,
           criterion, save_model_name):
     prev_time = datetime.now()
 
@@ -54,7 +54,7 @@ def train(net, net_dim, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_n
     if not os.path.exists(LOG_DIR):
         os.mkdir(LOG_DIR)
 
-    writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, net_dim + '_densenet', TIME_NOW))
+    writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, net_name, TIME_NOW))
 
     phase = 'train_valid'
     max_vail_acc = 0.0
@@ -110,7 +110,7 @@ def train(net, net_dim, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_n
             max_valid_acc = 0.0
             min_valid_loss = 1000.0
 
-            if net_dim == '3D':
+            if net_name == 'densenet_3D':
                 valid_epoch = 5
             else:
                 valid_epoch = 1
@@ -154,7 +154,7 @@ def train(net, net_dim, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_n
 
         if valid_acc / len(valid_data) > max_vail_acc:
             max_vail_acc = valid_acc / len(valid_data)
-            torch.save(net, os.path.join(CHECKPOINT_PATH, net_dim + '_densenet', save_model_name))
+            torch.save(net, os.path.join(CHECKPOINT_PATH, net_name, save_model_name))
 
         cur_time = datetime.now()
         h, remainder = divmod((cur_time - prev_time).seconds, 3600)
@@ -166,10 +166,10 @@ def train(net, net_dim, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_n
     writer.close()
 
 
-def test(net_dim, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, save_model_name, result_file):
+def test(net_name, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, save_model_name, result_file):
     phase = 'test'
 
-    net = torch.load(os.path.join(CHECKPOINT_PATH, net_dim + '_densenet', save_model_name))
+    net = torch.load(os.path.join(CHECKPOINT_PATH, net_name, save_model_name))
     net = net.eval()
 
     with torch.no_grad():
@@ -180,7 +180,7 @@ def test(net_dim, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, sav
 
         max_test_acc = 0.0
 
-        if net_dim == '3D':
+        if net_name == 'densenet_3D':
             test_epoch = 5
         else:
             test_epoch = 1
@@ -225,7 +225,7 @@ def test(net_dim, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, sav
                 df.insert(df.shape[1], 'label-pre', label_predicted_list)
                 df.insert(df.shape[1], 'label_gt', label_list)
                 df.insert(df.shape[1], 'dirs', dirs_list)
-                df.to_excel(os.path.join(RESULT_DIR, net_dim + '_densenet', result_file))
+                df.to_excel(os.path.join(RESULT_DIR, net_name, result_file))
 
 
 def count_person_result(input_file, output_file):
@@ -249,10 +249,8 @@ def count_person_result(input_file, output_file):
         count = count + 1
 
         if i + 1 < len(input_df['dirs']) and input_df['dirs'][i] is not input_df['dirs'][i + 1]:
-            temp_row[0] = temp_row[0] / count
-            temp_row[1] = temp_row[1] / count
-            temp_row[2] = temp_row[2] / count
-            temp_row[3] = temp_row[3] / count
+            for j in range(4):
+                temp_row[j] = temp_row[j] / count
             temp_row[4] = temp_row[:4].index(max(temp_row[:4]))
             temp_row[5] = input_df['label_gt'][i]
             temp_row[6] = input_df['dirs'][i]
@@ -263,10 +261,8 @@ def count_person_result(input_file, output_file):
 
         if i + 1 == len(input_df['dirs']):
             # last line
-            temp_row[0] = temp_row[0] / count
-            temp_row[1] = temp_row[1] / count
-            temp_row[2] = temp_row[2] / count
-            temp_row[3] = temp_row[3] / count
+            for j in range(4):
+                temp_row[j] = temp_row[j] / count
             temp_row[4] = temp_row[:4].index(max(temp_row[:4]))
             temp_row[5] = input_df['label_gt'][i]
             temp_row[6] = input_df['dirs'][i]
@@ -278,20 +274,21 @@ def count_person_result(input_file, output_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--net_dim', type=str, default='3D', choices=['2D', '3D'], help='使用2D还是3D DenseNet')
-    parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/CTDATA/', help='输入数据的根路径')
-    parser.add_argument('--cut_pic_size', type=bool, default=False, help='是否将图片裁剪为432*432')
-    parser.add_argument('--cut_pic_num', type=str, choices=['remain', 'precise', 'rough'], default='remain',
+    parser.add_argument('--net_name', type=str, default='swin_base', choices=['densenet_2D', 'densenet_3D', 'swin_base'],
+                        help='使用的网络')
+    parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/LUNG_SEG/', help='输入数据的根路径')
+    parser.add_argument('--cut_pic_size', type=bool, default=True, help='是否将图片裁剪压缩')
+    parser.add_argument('--cut_pic_num', type=str, choices=['remain', 'precise', 'rough'], default='precise',
                         help='是否只截去不含肺区域的图像，remain:不截，保留原始图像的个数，precise:精筛，rough:粗筛，直接截去上下各1/6的图像数量')
     parser.add_argument('--use_gpu', type=bool, default=True, help='是否只使用GPU')
-    parser.add_argument('--batch_size', type=int, default=2, help='batch size, 2d:20, 3d:2')
+    parser.add_argument('--batch_size', type=int, default=10, help='batch size, 2d:20, 3d:2')
     parser.add_argument('--num_epochs', type=int, default=50, help='num of epochs')
     parser.add_argument('--drop_rate', type=float, default=0.2, help='dropout rate,2D:0.5，3D：0.2')
-    parser.add_argument('--save_model_name', type=str, default='3d_DenseNet121_50epoch_0.2_step.pkl',
+    parser.add_argument('--save_model_name', type=str, default='swin_base_50epoch.pkl',
                         help='model save name')
-    parser.add_argument('--result_file', type=str, default='test_debug_50epoch_dir.xlsx',
+    parser.add_argument('--result_file', type=str, default='swin_base_debug_50epoch_dir.xlsx',
                         help='test result filename')
-    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='0', help='使用哪块GPU')
+    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='1', help='使用哪块GPU')
 
     args_in = sys.argv[1:]
     args = parser.parse_args(args_in)
@@ -308,18 +305,22 @@ if __name__ == '__main__':
     train_valid_data_root_path = os.path.join(args.data_root_path, 'train_valid')
     test_data_root_path = os.path.join(args.data_root_path, 'test')
 
-    if args.net_dim == '2D':
+    if args.net_name == 'densenet_2D':
         train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path,
                                                             args.cut_pic_num)
         test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
-        # 2D DenseNet
         net = densenet121(channels, num_classes, args.use_gpu, args.drop_rate)
-    elif args.net_dim == '3D':
+    elif args.net_name == 'densenet_3D':
         train_valid_datapath_label = load_3d_datapath_label(train_valid_data_root_path, train_valid_label_path)
         test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
-        # 3D DenseNet
-        net = generate_model(121, args.use_gpu, n_input_channels=channels, num_classes=num_classes,
-                             drop_rate=args.drop_rate)
+        net = densenet_3d.generate_model(121, args.use_gpu, n_input_channels=channels, num_classes=num_classes,
+                                         drop_rate=args.drop_rate)
+    elif args.net_name == 'swin_base':
+        train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path,
+                                                            args.cut_pic_num)
+        test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
+
+        net = swin_tranformer.generate_model(args.use_gpu, channels, num_classes)
 
     train_data = []
     valid_data = []
@@ -342,8 +343,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(net.parameters(), lr=3e-4)
     criterion = nn.CrossEntropyLoss()
 
-    train(net, args.net_dim, args.use_gpu, train_data, valid_data, args.cut_pic_size, args.cut_pic_num, args.batch_size,
+    train(net, args.net_name, args.use_gpu, train_data, valid_data, args.cut_pic_size, args.cut_pic_num, args.batch_size,
           args.num_epochs, optimizer, criterion, args.save_model_name)
-    test(args.net_dim, args.use_gpu, test_data, args.cut_pic_size, args.cut_pic_num, args.batch_size,
-         args.save_model_name,
-         args.result_file)
+    test(args.net_name, args.use_gpu, test_data, args.cut_pic_size, args.cut_pic_num, args.batch_size,
+         args.save_model_name, args.result_file)

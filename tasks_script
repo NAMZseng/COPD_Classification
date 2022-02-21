@@ -1,6 +1,6 @@
   -----------------------------------2d-3- running 15499 13:52------------------------------------
   nohup python -u train.py \
-  --net_dim 2D \
+  --net_name densenet_2D \
  --data_root_path /data/zengnanrong/CTDATA/ \
  --cut_pic_size False \
  --cut_pic_num rough \
@@ -11,11 +11,11 @@
  --save_model_name DenseNet121_cut_num_rough_50epoch.pkl \
  --result_file test_cut_num_rough_50epoch_dir.xlsx \
  --cuda_device 1 \
- > ./log/2D_densenet/out_cut_num_rough_50epoch.log &
+ > ./log/densenet_2D_densenet/out_cut_num_rough_50epoch.log &
 
 -------------------------------------3d-2 done------------------------------------
    nohup python -u train.py \
- --net_dim 3D \
+ --net_name densenet_3D \
  --data_root_path /data/zengnanrong/CTDATA/ \
  --cut_pic_size False \
  --cut_pic_num precise \
@@ -29,7 +29,7 @@
  > ./log/out_3d_cut_num_precise_50epoch_0.2_step_10valid_test_1.log &
 -------------------------------------3d-3 done-----------------------------------
    nohup python -u train.py \
- --net_dim 3D \
+ --net_name densenet_3D \
  --data_root_path /data/zengnanrong/CTDATA/ \
  --cut_pic_size False \
  --cut_pic_num rough \
@@ -44,7 +44,7 @@
 
 --------------------------------------3d-4-done----------------------------------
    nohup python -u train.py \
- --net_dim 3D \
+ --net_name densenet_3D \
  --data_root_path /data/zengnanrong/CTDATA/ \
  --cut_pic_size False \
  --cut_pic_num rough \
@@ -59,7 +59,7 @@
 
  --------------------------------------3d-5 done ------------------------------------
    nohup python -u train.py \
- --net_dim 3D \
+ --net_name densenet_3D \
  --data_root_path /data/LUNG_SEG/ \
  --cut_pic_size False \
  --cut_pic_num precise \
@@ -74,7 +74,7 @@
 
 --------------------------------------3d-6-done------------------------------------
    nohup python -u train.py \
- --net_dim 3D \
+ --net_name densenet_3D \
  --data_root_path /data/LUNG_SEG/ \
  --cut_pic_size False \
  --cut_pic_num rough \
@@ -89,7 +89,7 @@
 
  --------------------------------------3d-7  ------------------------------------
    nohup python -u train.py \
- --net_dim 3D \
+ --net_name densenet_3D \
  --data_root_path /data/LUNG_SEG/ \
  --cut_pic_size True \
  --cut_pic_num precise \
@@ -101,3 +101,18 @@
  --result_file test_3d_seg_cut_size_cut_num_precise_50epoch_dir_0.2_step.xlsx \
  --cuda_device 1 \
  > ./log/out_3d_seg_cut_size_cut_num_precise_50epoch_0.2_step.log &
+
+
+ --------------------------------------swin transformer------------------------------------
+   nohup python -u train.py \
+ --net_name swin_base \
+ --data_root_path /data/zengnanrong/LUNG_SEG/ \
+ --cut_pic_size True \
+ --cut_pic_num precise \
+ --use_gpu True \
+ --batch_size 20 \
+ --num_epochs 50 \
+ --save_model_name swin_base_50epoch.pkl \
+ --result_file swin_base_50epoch_dir.xlsx \
+ --cuda_device 1 \
+ > ./log/swin_transformer/out_swin_base_50epoch.log &

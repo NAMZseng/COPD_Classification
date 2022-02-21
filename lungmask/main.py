@@ -1,8 +1,8 @@
 import sys
 import argparse
 import logging
-import mask
-import lungmask_utils
+from lungmask import mask
+from lungmask import lungmask_utils
 import os
 import SimpleITK as sitk
 import numpy as np
@@ -87,6 +87,11 @@ def main(input, output, modelpath):
 
 
 def mask_dcms(data_dir_name):
+    """
+    获取原始dcm图像的肺实质区域标签，并将标签保存为dicm格式
+    :param data_dir_name:
+    :return:
+    """
     modelpath = '/home/MHISS/zengnanrong/COPD/checkpoint/unet_r231-d5d2fc3d.pth'
     input_root_path = "/data/zengnanrong/CTDATA/"
     output_root_path = "/data/zengnanrong/R231/"
@@ -98,6 +103,29 @@ def mask_dcms(data_dir_name):
                 input = os.path.join(root, item)
                 output = input.replace(input_root_path, output_root_path)
                 main(input, output, modelpath)
+
+
+def mask_nii(patient_dir_name):
+    """
+    获取原始dcm图像的肺实质区域标签，并将标签保存为nii格式
+    :param patient_dir_name:
+    :return:
+    """
+    modelpath = '/home/MHISS/zengnanrong/COPD/checkpoint/unet_r231-d5d2fc3d.pth'
+    input_root_path = "/data/zengnanrong/COPD_Biphasic/stage_3/DICOM"
+
+    patient_dir_path = os.path.join(input_root_path, patient_dir_name)
+    ct_dirs = get_ct_dirs(patient_dir_path)
+    for dir in ct_dirs:
+        input = os.path.join(patient_dir_path, dir)
+        file_list = os.listdir(input)
+        if len(file_list) < 2:
+            continue
+
+        output = input.replace('COPD_Biphasic', 'COPD_Biphasic_R231')
+        output = output.replace('DICOM', 'nii')
+        output = os.path.join(output, os.path.split(output)[1] + '.nii')
+        main(input, output, modelpath)
 
 
 def get_ct_dirs(root_path):
@@ -186,15 +214,75 @@ def count_laa(data_dir_name):
     laa = format(emphysema_pixel_num / lung_pixel_num, '.4f')
     print(f'{data_dir_name},{emphysema_pixel_num},{lung_pixel_num},{laa}')
 
+def load_dicom(dicom_path):
+    # 获取该文件下的所有序列ID，每个序列对应一个ID， 返回的series_IDs为一个列表
+    series_IDs = sitk.ImageSeriesReader.GetGDCMSeriesIDs(dicom_path)
+
+    # 查看该文件夹下的序列数量
+
+    # 通过ID获取该ID对应的序列所有切片的完整路径， series_IDs[0]代表的是第一个序列的ID
+
+    # 如果不添加series_IDs[0]这个参数，则默认获取第一个序列的所有切片路径
+    series_file_names = sitk.ImageSeriesReader.GetGDCMSeriesFileNames(dicom_path, series_IDs[0])
+
+    # 新建一个ImageSeriesReader对象
+    series_reader = sitk.ImageSeriesReader()
+
+    # 通过之前获取到的序列的切片路径来读取该序列
+    series_reader.SetFileNames(series_file_names)
+
+    # 获取该序列对应的3D图像
+    image3D = series_reader.Execute()
+
+    return image3D
+
+
+def seg_nii(patient_dir_name):
+    mask_root_path = '/data/zengnanrong/COPD_Biphasic_R231/stage_1/nii'
+    patient_dir_path = os.path.join(mask_root_path, patient_dir_name)
+    ct_dirs = get_ct_dirs(patient_dir_path)
+
+    for dir in ct_dirs:
+        mask_dir_path = os.path.join(patient_dir_path, dir)
+
+        ct_path = mask_dir_path.replace('COPD_Biphasic_R231', 'COPD_Biphasic')
+        ct_path = ct_path.replace('nii', 'DICOM')
+        ct_image = load_dicom(ct_path)
+        ct_image_array = sitk.GetArrayFromImage(ct_image)
+
+        mask_nii_path = os.path.join(mask_dir_path, dir + '.nii')
+        mask_image = sitk.ReadImage(mask_nii_path)
+        mask_image_array = sitk.GetArrayFromImage(mask_image)
+
+        depth, width, height = ct_image_array.shape
+        for a in range(depth):
+            for b in range(width):
+                for c in range(height):
+                    if mask_image_array[a][b][c] == 0:
+                        ct_image_array[a][b][c] = 0
+
+        seg_dir_path = mask_dir_path.replace('COPD_Biphasic_R231', 'COPD_Biphasic_seg')
+        seg_nii_path = mask_nii_path.replace('COPD_Biphasic_R231', 'COPD_Biphasic_seg')
+        if not os.path.exists(seg_dir_path):
+            os.makedirs(seg_dir_path)
+        seg_image = sitk.GetImageFromArray(ct_image_array)
+        seg_image.CopyInformation(ct_image)
+        sitk.WriteImage(seg_image, seg_nii_path)
+        logging.info(f'Save result to: {seg_nii_path}')
+
 
 if __name__ == "__main__":
-    input_root_path = "/data/zengnanrong/LUNG_SEG/train_valid"
+    # input_root_path = "/data/zengnanrong/LUNG_SEG/train_valid"
+    # input_root_path = "/data/zengnanrong/COPD_Biphasic/stage_3/DICOM"
+    input_root_path = '/data/zengnanrong/COPD_Biphasic_R231/stage_1/nii'
 
     ct_dir = get_ct_dirs(input_root_path)
 
-    pool = Pool()
+    pool = Pool(4)
     # pool.map(mask_dcms, ct_dir)
     # pool.map(segement_dcms, ct_dir)
-    pool.map(count_laa, ct_dir)
+    # pool.map(count_laa, ct_dir)
+    # pool.map(mask_nii, ct_dir)
+    pool.map(seg_nii, ct_dir)
     pool.close()
     pool.join()

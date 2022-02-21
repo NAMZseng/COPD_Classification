@@ -6,6 +6,7 @@ import SimpleITK as sitk
 import numpy as np
 import nibabel as nib
 import cv2 as cv
+from scipy.ndimage import zoom
 
 from lungmask.main import get_ct_dirs
 
@@ -234,9 +235,12 @@ def load_data(data_dic, cut_pic_size, cut_pic_num):
     path = data_dic['image_path']
     if os.path.isfile(path):
         dicom_image = sitk.ReadImage(path)
+        # (1, 512, 512)
         image_array = sitk.GetArrayFromImage(dicom_image)
+        z, x, y = image_array.shape
         if cut_pic_size:
-            pass
+            image_array = zoom(image_array, (1, 224 / x, 224 / y))
+            # image_array[0] = cv.resize(image_array[0], (224, 224), interpolation=cv.INTER_AREA)
     else:
         image_array_3d = load_dicom_series(data_dic, cut_pic_num)
         if cut_pic_size:
@@ -244,7 +248,7 @@ def load_data(data_dic, cut_pic_size, cut_pic_num):
                 image = image_array_3d[i]
                 # cut to 400*400
                 image_array_3d[i] = image[56:456, 56:456]
-                # compress to 200*200
+                # resize to 200*200
                 image_array_3d[i] = cv.resize(image_array_3d[i], (200, 200), interpolation=cv.INTER_AREA)
 
         # make the shape of image_array from (depth,high,width) to (channel,depth,high,width)

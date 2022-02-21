@@ -1,8 +1,8 @@
 import numpy as np
 import torch
-import lungmask_utils
+from lungmask import lungmask_utils
 import SimpleITK as sitk
-from resunet import UNet
+from lungmask.resunet import UNet
 import warnings
 import sys
 from tqdm import tqdm
