@@ -248,7 +248,8 @@ from sklearn.preprocessing import label_binarize
 # plt.legend(loc="lower right", prop={'size': 7.5})
 #
 # # ------------------------------------------------------------------
-diabetes = pd.read_excel('./result/3D_densenet/test_3d_seg_rough_multi_50epoch_dir_random.xlsx')
+# diabetes = pd.read_excel('./result/3D_densenet/test_3d_seg_rough_multi_50epoch_dir_random.xlsx')
+diabetes = pd.read_excel('./result/efficientv2/efficientv2_1316.xlsx')
 n_class = 4
 list1 = diabetes['label_gt']
 list2 = np.array(diabetes[['p0', 'p1', 'p2', 'p3']])

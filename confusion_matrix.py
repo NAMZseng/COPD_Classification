@@ -17,7 +17,8 @@ from train import count_person_result
 # diabetes = pd.read_excel('./result/3D_densenet/test_3d_cut_num_rough_50epoch_dir_0.2_step_5valid.xlsx')
 # diabetes = pd.read_excel('./result/3D_densenet/test_3d_rough_multi_50epoch_dir_random.xlsx')
 # diabetes = pd.read_excel('./result/3D_densenet/test_3d_seg_cut_num_precise_50epoch_dir_0.2_step_1.xlsx')
-diabetes = pd.read_excel('./result/3D_densenet/test_3d_seg_rough_multi_50epoch_dir_random.xlsx')
+# diabetes = pd.read_excel('./result/3D_densenet/test_3d_seg_rough_multi_50epoch_dir_random.xlsx')
+diabetes = pd.read_excel('./result/efficientv2/efficientv2_1316.xlsx')
 
 
 # diabetes = pd.read_excel('./result/3D_densenet/test_3d_seg_cut_size_cut_num_precise_50epoch_dir_0.2_step.xlsx')

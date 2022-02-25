@@ -7,7 +7,7 @@ import numpy as np
 import nibabel as nib
 import cv2 as cv
 from scipy.ndimage import zoom
-
+from PIL import Image
 from lungmask.main import get_ct_dirs
 
 
@@ -86,9 +86,22 @@ def find_lung_range(label_path, data_root_path, output_path):
     label_df.to_excel(output_path)
 
 
+def load_1316_datapath_label(data_root_path):
+    data_path_with_label = [[], [], [], []]
+    for root, dirs, files in os.walk(data_root_path):
+        if len(dirs) == 0:  # 此时已经进入具体某个标签的文件夹下
+            for image in files:
+                image_path = os.path.join(root, image)
+                index = int(os.path.split(root)[1])
+                data_path_with_label[index].append(
+                    {'image_path': image_path, 'label': index, 'dir': str(index) + '/' + image})
+
+    return data_path_with_label
+
+
 def load_2d_datapath_label(data_root_path, label_path, cut_pic_num):
     """
-    2d-densenet的数据加载
+    2d网络的数据加载
     加载每一张DICOM图像的路径，并为其加上对应标签
     :param data_root_path:
     :param label_path:
@@ -141,7 +154,7 @@ def load_2d_datapath_label(data_root_path, label_path, cut_pic_num):
 
 def load_3d_datapath_label(data_root_path, label_path):
     """
-    3d-densenet的数据加载
+    3d网络的数据加载
     加载每个病人的图像路径，并为其加上对应标签
     :param data_root_path:
     :param label_path:
@@ -233,7 +246,14 @@ def load_dicom_series(data_dic, cut_pic_num):
 
 def load_data(data_dic, cut_pic_size, cut_pic_num):
     path = data_dic['image_path']
-    if os.path.isfile(path):
+    if path[-4:] == '.png':
+        image = Image.open(path)
+        image_array = [np.array(image)]
+        image_array = np.array(image_array)
+        z, x, y = image_array.shape
+        if cut_pic_size:
+            image_array = zoom(image_array, (1, 224 / x, 224 / y))
+    elif os.path.isfile(path):
         dicom_image = sitk.ReadImage(path)
         # (1, 512, 512)
         image_array = sitk.GetArrayFromImage(dicom_image)
@@ -277,10 +297,11 @@ if __name__ == "__main__":
     # data_root_path = "/data/zengnanrong/CTDATA/test/"
     # label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
     # data_root_path = "/data/zengnanrong/CTDATA/train_valid/"
-    data_root_path = "/data/LUNG_SEG/train_valid/"
-    label_path = '/data/zengnanrong/label_match_ct_4_range_train_valid.xlsx'
+    data_root_path = "/data/zengnanrong/dataset1316/test"
+    # label_path = '/data/zengnanrong/label_match_ct_4_range_train_valid.xlsx'
     # data = load_2d_datapath_label(data_root_path, label_path, False, False)
-    data = load_3d_datapath_label(data_root_path, label_path)
+    # data = load_3d_datapath_label(data_root_path, label_path)
+    data = load_1316_datapath_label(data_root_path)
     print(data[0][0])
     print(len(data[0]))
     print(len(data[1]))

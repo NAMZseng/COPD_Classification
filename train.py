@@ -6,10 +6,10 @@ import random
 import torch
 from torch import nn
 from torch.autograd import Variable
-from dataset import load_2d_datapath_label, load_data, load_3d_datapath_label
+from dataset import load_2d_datapath_label, load_data, load_3d_datapath_label, load_1316_datapath_label
 from datetime import datetime
 from models.densenet import densenet121
-from models import densenet_3d, swin_tranformer
+from models import densenet_3d, swin_tranformer, efficientnet
 
 from torch.utils.tensorboard import SummaryWriter
 from global_settings import CHECKPOINT_PATH, LOG_DIR, TIME_NOW, RESULT_DIR
@@ -59,8 +59,9 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
     phase = 'train_valid'
     max_vail_acc = 0.0
 
-    if not os.path.exists(CHECKPOINT_PATH):
-        os.makedirs(CHECKPOINT_PATH)
+    checkpoint_dir = os.path.join(CHECKPOINT_PATH, net_name)
+    if not os.path.exists(checkpoint_dir):
+        os.makedirs(checkpoint_dir)
 
     for epoch in range(num_epochs):
         random.shuffle(train_data)
@@ -86,6 +87,12 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
             else:
                 batch_images = Variable(torch.tensor(batch_images))
                 batch_labels = Variable(torch.tensor(batch_labels))
+
+            for m in net.modules():
+                if isinstance(m, nn.BatchNorm2d):
+                    m.train()
+                    m.weight.requires_grad = False
+                    m.bias.requires_grad = False
 
             optimizer.zero_grad()  # 清除上一个batch计算的梯度,因为pytorch默认会累积梯度
             output = net(batch_images)
@@ -168,6 +175,9 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
 
 def test(net_name, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, save_model_name, result_file):
     phase = 'test'
+    result_dir = os.path.join(RESULT_DIR, net_name)
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
 
     net = torch.load(os.path.join(CHECKPOINT_PATH, net_name, save_model_name))
     net = net.eval()
@@ -274,19 +284,19 @@ def count_person_result(input_file, output_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--net_name', type=str, default='swin_base', choices=['densenet_2D', 'densenet_3D', 'swin_base'],
+    parser.add_argument('--net_name', type=str, default='efficientv2', choices=['densenet_2D', 'densenet_3D', 'swin_base','efficientv2'],
                         help='使用的网络')
     parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/LUNG_SEG/', help='输入数据的根路径')
     parser.add_argument('--cut_pic_size', type=bool, default=True, help='是否将图片裁剪压缩')
     parser.add_argument('--cut_pic_num', type=str, choices=['remain', 'precise', 'rough'], default='precise',
                         help='是否只截去不含肺区域的图像，remain:不截，保留原始图像的个数，precise:精筛，rough:粗筛，直接截去上下各1/6的图像数量')
     parser.add_argument('--use_gpu', type=bool, default=True, help='是否只使用GPU')
-    parser.add_argument('--batch_size', type=int, default=10, help='batch size, 2d:20, 3d:2')
+    parser.add_argument('--batch_size', type=int, default=30, help='batch size, 2d:20, 3d:2')
     parser.add_argument('--num_epochs', type=int, default=50, help='num of epochs')
-    parser.add_argument('--drop_rate', type=float, default=0.2, help='dropout rate,2D:0.5，3D：0.2')
-    parser.add_argument('--save_model_name', type=str, default='swin_base_50epoch.pkl',
+    parser.add_argument('--drop_rate', type=float, default=0.1, help='dropout rate,2D:0.5，3D：0.2')
+    parser.add_argument('--save_model_name', type=str, default='efficientv2_b3_1316.pkl',
                         help='model save name')
-    parser.add_argument('--result_file', type=str, default='swin_base_debug_50epoch_dir.xlsx',
+    parser.add_argument('--result_file', type=str, default='efficientv2_b3_1316.xlsx',
                         help='test result filename')
     parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='1', help='使用哪块GPU')
 
@@ -306,21 +316,23 @@ if __name__ == '__main__':
     test_data_root_path = os.path.join(args.data_root_path, 'test')
 
     if args.net_name == 'densenet_2D':
-        train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path,
-                                                            args.cut_pic_num)
+        train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path,args.cut_pic_num)
         test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
         net = densenet121(channels, num_classes, args.use_gpu, args.drop_rate)
     elif args.net_name == 'densenet_3D':
         train_valid_datapath_label = load_3d_datapath_label(train_valid_data_root_path, train_valid_label_path)
         test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
-        net = densenet_3d.generate_model(121, args.use_gpu, n_input_channels=channels, num_classes=num_classes,
-                                         drop_rate=args.drop_rate)
+        net = densenet_3d.generate_model(121, args.use_gpu, n_input_channels=channels, num_classes=num_classes, drop_rate=args.drop_rate)
     elif args.net_name == 'swin_base':
-        train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path,
-                                                            args.cut_pic_num)
+        train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path, args.cut_pic_num)
         test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
-
         net = swin_tranformer.generate_model(args.use_gpu, channels, num_classes)
+    elif args.net_name == 'efficientv2':
+        # train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path, args.cut_pic_num)
+        # test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
+        train_valid_datapath_label = load_1316_datapath_label('/data/zengnanrong/dataset1316/train')
+        test_datapath_label = load_1316_datapath_label('/data/zengnanrong/dataset1316/test')
+        net = efficientnet.generate_model(args.use_gpu, channels, num_classes)
 
     train_data = []
     valid_data = []
