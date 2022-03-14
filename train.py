@@ -6,9 +6,15 @@ import random
 import torch
 from torch import nn
 from torch.autograd import Variable
+from torch.optim import lr_scheduler
+
 from dataset import load_2d_datapath_label, load_data, load_3d_datapath_label, load_1316_datapath_label
 from datetime import datetime
+
+from focal_loss import FocalLoss
+from lr_scheduler import LinearLRScheduler
 from models.densenet import densenet121
+from models.resnet import resnet18
 from models import densenet_3d, swin_tranformer, efficientnet
 
 from torch.utils.tensorboard import SummaryWriter
@@ -35,7 +41,8 @@ def next_batch(batch_size, index_in_total, data, cut_pic_size, cut_pic_num, phas
     for i in range(start, end):
         if i < total_num:
             image = load_data(data[i], cut_pic_size, cut_pic_num)
-            batch_images.append(image)
+            # batch_images.append(image)
+            batch_images.extend(image)  # for efficientV2 and swin-transformer
 
             label = data[i]['label']
             batch_labels.append(label)
@@ -47,7 +54,7 @@ def next_batch(batch_size, index_in_total, data, cut_pic_size, cut_pic_num, phas
 
 
 def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_num, batch_size, num_epochs, optimizer,
-          criterion, save_model_name):
+          scheduler, criterion, save_model_name):
     prev_time = datetime.now()
 
     # use tensorboard
@@ -87,12 +94,6 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
             else:
                 batch_images = Variable(torch.tensor(batch_images))
                 batch_labels = Variable(torch.tensor(batch_labels))
-
-            for m in net.modules():
-                if isinstance(m, nn.BatchNorm2d):
-                    m.train()
-                    m.weight.requires_grad = False
-                    m.bias.requires_grad = False
 
             optimizer.zero_grad()  # 清除上一个batch计算的梯度,因为pytorch默认会累积梯度
             output = net(batch_images)
@@ -149,6 +150,8 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
                     max_valid_acc = valid_acc / len(valid_data)
                 if valid_loss / len(valid_data) < min_valid_loss:
                     min_valid_loss = valid_loss / len(valid_data)
+
+        scheduler.step(min_valid_loss)
 
         epoch_str = (
                 "Epoch %d. Train Loss: %f, Train Acc: %f, Valid Loss: %f, Valid Acc: %f, "
@@ -284,27 +287,29 @@ def count_person_result(input_file, output_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--net_name', type=str, default='efficientv2', choices=['densenet_2D', 'densenet_3D', 'swin_base','efficientv2'],
+    parser.add_argument('--net_name', type=str, default='swin_base',
+                        choices=['densenet_2D', 'densenet_3D', 'swin_base', 'efficientv2', 'resnet18'],
                         help='使用的网络')
-    parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/LUNG_SEG/', help='输入数据的根路径')
+    parser.add_argument('--data_root_path', type=str, default='/data/LUNG_SEG/', help='输入数据的根路径')
     parser.add_argument('--cut_pic_size', type=bool, default=True, help='是否将图片裁剪压缩')
     parser.add_argument('--cut_pic_num', type=str, choices=['remain', 'precise', 'rough'], default='precise',
                         help='是否只截去不含肺区域的图像，remain:不截，保留原始图像的个数，precise:精筛，rough:粗筛，直接截去上下各1/6的图像数量')
     parser.add_argument('--use_gpu', type=bool, default=True, help='是否只使用GPU')
-    parser.add_argument('--batch_size', type=int, default=30, help='batch size, 2d:20, 3d:2')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch size, 2d:20, 3d:2')
     parser.add_argument('--num_epochs', type=int, default=50, help='num of epochs')
     parser.add_argument('--drop_rate', type=float, default=0.1, help='dropout rate,2D:0.5，3D：0.2')
-    parser.add_argument('--save_model_name', type=str, default='efficientv2_b3_1316.pkl',
+    parser.add_argument('--save_model_name', type=str, default='debug.pkl',
                         help='model save name')
-    parser.add_argument('--result_file', type=str, default='efficientv2_b3_1316.xlsx',
+    parser.add_argument('--result_file', type=str, default='debug.xlsx',
                         help='test result filename')
     parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='1', help='使用哪块GPU')
 
     args_in = sys.argv[1:]
     args = parser.parse_args(args_in)
 
-    os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_device
-    torch.cuda.empty_cache()
+    if args.use_gpu:
+        os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_device
+        torch.cuda.empty_cache()
 
     channels = 1
     num_classes = 4  # 4分类
@@ -316,23 +321,27 @@ if __name__ == '__main__':
     test_data_root_path = os.path.join(args.data_root_path, 'test')
 
     if args.net_name == 'densenet_2D':
-        train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path,args.cut_pic_num)
+        train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path,
+                                                            args.cut_pic_num)
         test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
         net = densenet121(channels, num_classes, args.use_gpu, args.drop_rate)
     elif args.net_name == 'densenet_3D':
         train_valid_datapath_label = load_3d_datapath_label(train_valid_data_root_path, train_valid_label_path)
         test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
-        net = densenet_3d.generate_model(121, args.use_gpu, n_input_channels=channels, num_classes=num_classes, drop_rate=args.drop_rate)
+        net = densenet_3d.generate_model(121, args.use_gpu, n_input_channels=channels, num_classes=num_classes,
+                                         drop_rate=args.drop_rate)
     elif args.net_name == 'swin_base':
-        train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path, args.cut_pic_num)
-        test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
+        train_valid_datapath_label = load_3d_datapath_label(train_valid_data_root_path, train_valid_label_path)
+        test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
         net = swin_tranformer.generate_model(args.use_gpu, channels, num_classes)
     elif args.net_name == 'efficientv2':
-        # train_valid_datapath_label = load_2d_datapath_label(train_valid_data_root_path, train_valid_label_path, args.cut_pic_num)
-        # test_datapath_label = load_2d_datapath_label(test_data_root_path, test_label_path, args.cut_pic_num)
+        train_valid_datapath_label = load_3d_datapath_label(train_valid_data_root_path, train_valid_label_path)
+        test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
+        net = efficientnet.generate_model(args.use_gpu, channels, num_classes)
+    elif args.net_name == 'resnet18':
         train_valid_datapath_label = load_1316_datapath_label('/data/zengnanrong/dataset1316/train')
         test_datapath_label = load_1316_datapath_label('/data/zengnanrong/dataset1316/test')
-        net = efficientnet.generate_model(args.use_gpu, channels, num_classes)
+        net = resnet18(channels, num_classes, args.use_gpu)
 
     train_data = []
     valid_data = []
@@ -352,10 +361,19 @@ if __name__ == '__main__':
         valid_data.extend(train_valid_datapath_label[label][train_index:])
         test_data.extend(test_datapath_label[label])
 
-    optimizer = torch.optim.Adam(net.parameters(), lr=3e-4)
+    # for swin-base
+    if len(train_data) % args.batch_size == 0:
+        batch_num = int(len(train_data) / args.batch_size)
+    else:
+        batch_num = int(len(train_data) / args.batch_size) + 1
+    # optimizer = torch.optim.AdamW(net.parameters(), eps=1.0e-08, betas=(0.9, 0.999), lr=1e-5, weight_decay=0.05)
+    optimizer = torch.optim.Adam(net.parameters(), lr=3e-4, betas=(0.9, 0.999), eps=1e-4, weight_decay=1e-3)
+    scheduler = LinearLRScheduler(optimizer, t_initial=50 * batch_num, lr_min_rate=0.01, warmup_lr_init=5e-7,
+                                  warmup_t=batch_num, t_in_epochs=False)
+    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=5000, eta_min=1e-5)
     criterion = nn.CrossEntropyLoss()
 
-    train(net, args.net_name, args.use_gpu, train_data, valid_data, args.cut_pic_size, args.cut_pic_num, args.batch_size,
-          args.num_epochs, optimizer, criterion, args.save_model_name)
+    train(net, args.net_name, args.use_gpu, train_data, valid_data, args.cut_pic_size, args.cut_pic_num,
+          args.batch_size, args.num_epochs, optimizer, scheduler, criterion, args.save_model_name)
     test(args.net_name, args.use_gpu, test_data, args.cut_pic_size, args.cut_pic_num, args.batch_size,
          args.save_model_name, args.result_file)

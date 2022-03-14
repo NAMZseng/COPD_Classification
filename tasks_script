@@ -103,34 +103,6 @@
  > ./log/out_3d_seg_cut_size_cut_num_precise_50epoch_0.2_step.log &
 
 
- --------------------------------------swin transformer------------------------------------
-   nohup python -u train.py \
- --net_name swin_base \
- --data_root_path /data/zengnanrong/LUNG_SEG/ \
- --cut_pic_size True \
- --cut_pic_num precise \
- --use_gpu True \
- --batch_size 40 \
- --num_epochs 50 \
- --save_model_name swin_base_50epoch.pkl \
- --result_file swin_base_50epoch_dir.xlsx \
- --cuda_device 1 \
- > ./log/swin_transformer/out_swin_base_50epoch.log &
-
-  --------------------------------------efficientv2------------------------------------
-   nohup python -u train.py \
- --net_name efficientv2 \
- --data_root_path /data/zengnanrong/LUNG_SEG/ \
- --cut_pic_size False \
- --cut_pic_num precise \
- --use_gpu True \
- --batch_size 50 \
- --num_epochs 50 \
- --save_model_name efficientv2_50epoch.pkl \
- --result_file efficientv2_50epoch_dir.xlsx \
- --cuda_device 1 \
- > ./log/efficientv2/out_efficientv2_50epoch.log &
-
    --------------------------------------efficientv2  1316------------------------------------
    nohup python -u train.py \
  --net_name efficientv2 \
@@ -144,3 +116,33 @@
  --result_file efficientv2_b3_1316.xlsx \
  --cuda_device 1 \
  > ./log/efficientv2/out_efficientv2_b3_1316.log &
+
+   --------------------------------------efficientv2------------------------------------
+   nohup python -u train.py \
+ --net_name efficientv2 \
+ --data_root_path /data/LUNG_SEG/ \
+ --cut_pic_size True \
+ --cut_pic_num precise \
+ --use_gpu True \
+ --batch_size 1 \
+ --num_epochs 50 \
+ --save_model_name efficientv2_s_pretrained.pkl \
+ --result_file efficientv2_s_pretrained.xlsx \
+ --cuda_device 1 \
+ > ./log/efficientv2/out_efficientv2_s_pretrained.log &
+
+  --------------------------------------swin transformer------------------------------------
+   nohup python -u train.py \
+ --net_name swin_base \
+ --data_root_path /data/LUNG_SEG/ \
+ --cut_pic_size True \
+ --cut_pic_num precise \
+ --use_gpu True \
+ --batch_size 1 \
+ --num_epochs 50 \
+ --save_model_name swin_base_pretrained.pkl \
+ --result_file swin_base_pretrained.xlsx \
+ --cuda_device 1 \
+ > ./log/swin_transformer/swin_base_pretrained.log &
+
+

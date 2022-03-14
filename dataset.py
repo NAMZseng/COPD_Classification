@@ -211,18 +211,18 @@ def load_dicom_series(data_dic, cut_pic_num):
         end_idx = len(image_array) - start_idx
         image_array = image_array[start_idx:end_idx]
 
-    image_array_cut = []
-
-    cut_slice_num = 100
+    # image_array_cut = []
+    #
+    # cut_slice_num = 100
 
     # 抽法一：将每个人的CT图像分成cut_slice_num份，每份中等距抽取一张
-    step = int(len(image_array) / cut_slice_num)
-    index = random.sample(range(0, step), 1)
-    index = index[0]
-    image_array_cut.append(image_array[index])
-    for i in range(1, cut_slice_num):
-        index = index + step
-        image_array_cut.append(image_array[index])
+    # step = int(len(image_array) / cut_slice_num)
+    # index = random.sample(range(0, step), 1)
+    # index = index[0]
+    # image_array_cut.append(image_array[index])
+    # for i in range(1, cut_slice_num):
+    #     index = index + step
+    #     image_array_cut.append(image_array[index])
 
     # 抽法二：每例病人的数据分成10块，每次随机抽取一块，再从这块取cut_slice_num张图用做该轮训练
     # block_index = random.sample(range(1, 11), 1)
@@ -241,39 +241,43 @@ def load_dicom_series(data_dic, cut_pic_num):
     #     index = index[0]
     #     image_array_cut.append(image_array[index])
 
-    return image_array_cut
+    # return image_array_cut
+
+    #  for swin-transformer
+    return image_array
 
 
 def load_data(data_dic, cut_pic_size, cut_pic_num):
     path = data_dic['image_path']
-    if path[-4:] == '.png':
-        image = Image.open(path)
-        image_array = [np.array(image)]
+    if path[-4:] == '.png':  # for 1316 dataset
+        image = Image.open(path)  # (512, 512)
+        image_array = [np.array(image)] # (1, 512, 512)
         image_array = np.array(image_array)
         z, x, y = image_array.shape
         if cut_pic_size:
             image_array = zoom(image_array, (1, 224 / x, 224 / y))
-    elif os.path.isfile(path):
+    elif os.path.isfile(path):  # for single dicom slice
         dicom_image = sitk.ReadImage(path)
-        # (1, 512, 512)
-        image_array = sitk.GetArrayFromImage(dicom_image)
+        image_array = sitk.GetArrayFromImage(dicom_image) # (1, 512, 512)
         z, x, y = image_array.shape
         if cut_pic_size:
             image_array = zoom(image_array, (1, 224 / x, 224 / y))
-            # image_array[0] = cv.resize(image_array[0], (224, 224), interpolation=cv.INTER_AREA)
-    else:
-        image_array_3d = load_dicom_series(data_dic, cut_pic_num)
+    else:  # for dicom series
+        image_array = load_dicom_series(data_dic, cut_pic_num) # (N, 512, 512)
+        z, x, y = image_array.shape
         if cut_pic_size:
-            for i in range(len(image_array_3d)):
-                image = image_array_3d[i]
-                # cut to 400*400
-                image_array_3d[i] = image[56:456, 56:456]
-                # resize to 200*200
-                image_array_3d[i] = cv.resize(image_array_3d[i], (200, 200), interpolation=cv.INTER_AREA)
+            image_array = zoom(image_array, (64 / z, 224 / x, 224 / y))
+        # image_array = zoom(image_array, (100 / z, 1, 1))
+        image_array = image_array.tolist()
 
-        # make the shape of image_array from (depth,high,width) to (channel,depth,high,width)
-        # here channel = 1
-        image_array = [image_array_3d]
+        # make the shape of image_array from (depth,high,width) to (channel,depth,high,width), here channel = 1
+        # image_array = [image_array]
+
+        # for efficientV2 and swin-transformer, make image_array_3d shape:(depth,channel,high,width)
+        for i in range(len(image_array)):
+            image_array[i] = [image_array[i]]
+
+        image_array = np.array(image_array)
 
     return image_array
 
