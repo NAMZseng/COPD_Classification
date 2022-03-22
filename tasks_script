@@ -102,21 +102,6 @@
  --cuda_device 1 \
  > ./log/out_3d_seg_cut_size_cut_num_precise_50epoch_0.2_step.log &
 
-
-   --------------------------------------efficientv2  1316------------------------------------
-   nohup python -u train.py \
- --net_name efficientv2 \
- --data_root_path /data/zengnanrong/LUNG_SEG/ \
- --cut_pic_size True \
- --cut_pic_num precise \
- --use_gpu True \
- --batch_size 30 \
- --num_epochs 50 \
- --save_model_name efficientv2_b3_1316.pkl \
- --result_file efficientv2_b3_1316.xlsx \
- --cuda_device 1 \
- > ./log/efficientv2/out_efficientv2_b3_1316.log &
-
    --------------------------------------efficientv2------------------------------------
    nohup python -u train.py \
  --net_name efficientv2 \
@@ -144,5 +129,19 @@
  --result_file swin_base_pretrained.xlsx \
  --cuda_device 1 \
  > ./log/swin_transformer/swin_base_pretrained.log &
+
+
+  --------------------------------------resnet 3d------------------------------------
+   nohup python -u train.py \
+ --net_name resnet_3D \
+ --data_root_path /data/zengnanrong/lung_seg_normal_resize \
+ --use_gpu True \
+ --batch_size 1 \
+ --num_epochs 100 \
+ --save_model_name resnet34_img_lrf_multi_scale.pkl \
+ --result_file resnet34_img_lrf_multi_scale.xlsx \
+ --cuda_device 1 \
+ > ./log/3D_resnet/resnet34_img_lrf_multi_scale.log &
+
 
 

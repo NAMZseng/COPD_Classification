@@ -8,14 +8,13 @@ from torch import nn
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
 
-from dataset import load_2d_datapath_label, load_data, load_3d_datapath_label, load_1316_datapath_label
+from dataset import load_2d_datapath_label, load_data, load_3d_datapath_label, load_1316_datapath_label, \
+    load_3d_npy_datapath_label
 from datetime import datetime
 
-from focal_loss import FocalLoss
-from lr_scheduler import LinearLRScheduler
 from models.densenet import densenet121
 from models.resnet import resnet18
-from models import densenet_3d, swin_tranformer, efficientnet
+from models import densenet_3d, resnet_3d, swin_tranformer
 
 from torch.utils.tensorboard import SummaryWriter
 from global_settings import CHECKPOINT_PATH, LOG_DIR, TIME_NOW, RESULT_DIR
@@ -35,14 +34,15 @@ def next_batch(batch_size, index_in_total, data, cut_pic_size, cut_pic_num, phas
     end = index_in_total
 
     batch_images = []
+    batch_lrf = []  # Lung radiomics features
     batch_labels = []
     batch_dirs = []
 
     for i in range(start, end):
         if i < total_num:
-            image = load_data(data[i], cut_pic_size, cut_pic_num)
-            # batch_images.append(image)
-            batch_images.extend(image)  # for efficientV2 and swin-transformer
+            image, lrf = load_data(data[i], cut_pic_size, cut_pic_num, phase)
+            batch_lrf.append(lrf)
+            batch_images.append(image)
 
             label = data[i]['label']
             batch_labels.append(label)
@@ -50,7 +50,7 @@ def next_batch(batch_size, index_in_total, data, cut_pic_size, cut_pic_num, phas
             if phase == 'test':
                 batch_dirs.append(data[i]['dir'])
 
-    return batch_images, batch_labels, batch_dirs, index_in_total
+    return batch_images, batch_lrf, batch_labels, batch_dirs, index_in_total
 
 
 def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_num, batch_size, num_epochs, optimizer,
@@ -72,6 +72,7 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
 
     for epoch in range(num_epochs):
         random.shuffle(train_data)
+        random.shuffle(valid_data)
         train_loss = 0.0
         train_acc = 0
         index_in_trainset = 0
@@ -84,19 +85,22 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
             batch_num = int(len(train_data) / batch_size) + 1
 
         for batch in range(batch_num):
-            batch_images, batch_labels, _, index_in_trainset = next_batch(batch_size, index_in_trainset, train_data,
-                                                                          cut_pic_size, cut_pic_num, phase)
+            batch_images, batch_lrf, batch_labels, _, index_in_trainset = next_batch(batch_size, index_in_trainset, train_data,
+                                                                                     cut_pic_size, cut_pic_num, phase)
             batch_images = torch.tensor(batch_images, dtype=torch.float)
+            batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
 
             if use_gpu:
-                batch_images = Variable(torch.tensor(batch_images).cuda())
+                batch_images = Variable(batch_images.cuda())
+                batch_lrf = Variable(batch_lrf.cuda())
                 batch_labels = Variable(torch.tensor(batch_labels).cuda())
             else:
-                batch_images = Variable(torch.tensor(batch_images))
+                batch_images = Variable(batch_images)
+                batch_lrf = Variable(batch_lrf)
                 batch_labels = Variable(torch.tensor(batch_labels))
 
             optimizer.zero_grad()  # 清除上一个batch计算的梯度,因为pytorch默认会累积梯度
-            output = net(batch_images)
+            output = net(batch_images, batch_lrf)
             loss = criterion(output, batch_labels)  # 计算损失
             loss = loss.requires_grad_()
             loss.backward()  # 计算梯度
@@ -127,19 +131,22 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
                 valid_acc = 0
                 index_in_validset = 0
                 for batch in range(batch_num):
-                    batch_images, batch_labels, _, index_in_validset = next_batch(batch_size, index_in_validset,
-                                                                                  valid_data,
-                                                                                  cut_pic_size, cut_pic_num, phase)
+                    batch_images, batch_lrf, batch_labels, _, index_in_validset = next_batch(batch_size, index_in_validset,
+                                                                                             valid_data,
+                                                                                             cut_pic_size, cut_pic_num, phase)
                     batch_images = torch.tensor(batch_images, dtype=torch.float)
+                    batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
 
                     if use_gpu:
-                        batch_images = Variable(torch.tensor(batch_images).cuda())
+                        batch_images = Variable(batch_images.cuda())
+                        batch_lrf = Variable(batch_lrf.cuda())
                         batch_labels = Variable(torch.tensor(batch_labels).cuda())
                     else:
-                        batch_images = Variable(torch.tensor(batch_images))
+                        batch_images = Variable(batch_images)
+                        batch_lrf = Variable(batch_lrf)
                         batch_labels = Variable(torch.tensor(batch_labels))
 
-                    output = net(batch_images)
+                    output = net(batch_images, batch_lrf)
                     loss = criterion(output, batch_labels)
                     valid_loss += loss.data
                     _, pred_label = output.max(1)
@@ -151,7 +158,7 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
                 if valid_loss / len(valid_data) < min_valid_loss:
                     min_valid_loss = valid_loss / len(valid_data)
 
-        scheduler.step(min_valid_loss)
+        scheduler.step()
 
         epoch_str = (
                 "Epoch %d. Train Loss: %f, Train Acc: %f, Valid Loss: %f, Valid Acc: %f, "
@@ -205,19 +212,22 @@ def test(net_name, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, sa
             label_predicted_list = []
             dirs_list = []
             for batch in range(batch_num):
-                batch_images, batch_labels, batch_dirs, index_in_testset = next_batch(batch_size, index_in_testset,
-                                                                                      test_data, cut_pic_size,
-                                                                                      cut_pic_num, phase)
+                batch_images, batch_lrf, batch_labels, batch_dirs, index_in_testset = next_batch(batch_size, index_in_testset,
+                                                                                                 test_data, cut_pic_size,
+                                                                                                 cut_pic_num, phase)
                 batch_images = torch.tensor(batch_images, dtype=torch.float)
+                batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
 
                 if use_gpu:
-                    batch_images = Variable(torch.tensor(batch_images).cuda())
+                    batch_images = Variable(batch_images.cuda())
+                    batch_lrf = Variable(batch_lrf.cuda())
                     batch_labels = Variable(torch.tensor(batch_labels).cuda())
                 else:
-                    batch_images = Variable(torch.tensor(batch_images))
+                    batch_images = Variable(batch_images)
+                    batch_lrf = Variable(batch_lrf)
                     batch_labels = Variable(torch.tensor(batch_labels))
 
-                output = net(batch_images)
+                output = net(batch_images, batch_lrf)
                 softmax = nn.Softmax(dim=1)
                 output_softmax = softmax(output)
 
@@ -287,20 +297,21 @@ def count_person_result(input_file, output_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--net_name', type=str, default='swin_base',
-                        choices=['densenet_2D', 'densenet_3D', 'swin_base', 'efficientv2', 'resnet18'],
+    parser.add_argument('--net_name', type=str, default='resnet_3D',
+                        choices=['densenet_2D', 'densenet_3D', 'swin_base', 'resnet18', 'resnet_3D'],
                         help='使用的网络')
-    parser.add_argument('--data_root_path', type=str, default='/data/LUNG_SEG/', help='输入数据的根路径')
+    parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/lung_seg_normal_resize',
+                        help='输入数据的根路径')
     parser.add_argument('--cut_pic_size', type=bool, default=True, help='是否将图片裁剪压缩')
     parser.add_argument('--cut_pic_num', type=str, choices=['remain', 'precise', 'rough'], default='precise',
                         help='是否只截去不含肺区域的图像，remain:不截，保留原始图像的个数，precise:精筛，rough:粗筛，直接截去上下各1/6的图像数量')
     parser.add_argument('--use_gpu', type=bool, default=True, help='是否只使用GPU')
-    parser.add_argument('--batch_size', type=int, default=1, help='batch size, 2d:20, 3d:2')
-    parser.add_argument('--num_epochs', type=int, default=50, help='num of epochs')
+    parser.add_argument('--batch_size', type=int, default=8, help='batch size, 2d:20, 3d:2')
+    parser.add_argument('--num_epochs', type=int, default=100, help='num of epochs')
     parser.add_argument('--drop_rate', type=float, default=0.1, help='dropout rate,2D:0.5，3D：0.2')
-    parser.add_argument('--save_model_name', type=str, default='debug.pkl',
+    parser.add_argument('--save_model_name', type=str, default='resnet34_img.pkl',
                         help='model save name')
-    parser.add_argument('--result_file', type=str, default='debug.xlsx',
+    parser.add_argument('--result_file', type=str, default='resnet34_img.xlsx',
                         help='test result filename')
     parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='1', help='使用哪块GPU')
 
@@ -314,7 +325,7 @@ if __name__ == '__main__':
     channels = 1
     num_classes = 4  # 4分类
 
-    train_valid_label_path = '/data/zengnanrong/label_match_ct_4_range_train_valid.xlsx'
+    train_valid_label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
     test_label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
 
     train_valid_data_root_path = os.path.join(args.data_root_path, 'train_valid')
@@ -330,14 +341,14 @@ if __name__ == '__main__':
         test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
         net = densenet_3d.generate_model(121, args.use_gpu, n_input_channels=channels, num_classes=num_classes,
                                          drop_rate=args.drop_rate)
+    elif args.net_name == 'resnet_3D':
+        train_valid_datapath_label = load_3d_npy_datapath_label(args.data_root_path, train_valid_label_path)
+        test_datapath_label = load_3d_npy_datapath_label(args.data_root_path, test_label_path)
+        net = resnet_3d.generate_model(34, args.use_gpu, n_input_channels=channels, n_classes=num_classes)
     elif args.net_name == 'swin_base':
         train_valid_datapath_label = load_3d_datapath_label(train_valid_data_root_path, train_valid_label_path)
         test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
         net = swin_tranformer.generate_model(args.use_gpu, channels, num_classes)
-    elif args.net_name == 'efficientv2':
-        train_valid_datapath_label = load_3d_datapath_label(train_valid_data_root_path, train_valid_label_path)
-        test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
-        net = efficientnet.generate_model(args.use_gpu, channels, num_classes)
     elif args.net_name == 'resnet18':
         train_valid_datapath_label = load_1316_datapath_label('/data/zengnanrong/dataset1316/train')
         test_datapath_label = load_1316_datapath_label('/data/zengnanrong/dataset1316/test')
@@ -366,11 +377,9 @@ if __name__ == '__main__':
         batch_num = int(len(train_data) / args.batch_size)
     else:
         batch_num = int(len(train_data) / args.batch_size) + 1
-    # optimizer = torch.optim.AdamW(net.parameters(), eps=1.0e-08, betas=(0.9, 0.999), lr=1e-5, weight_decay=0.05)
-    optimizer = torch.optim.Adam(net.parameters(), lr=3e-4, betas=(0.9, 0.999), eps=1e-4, weight_decay=1e-3)
-    scheduler = LinearLRScheduler(optimizer, t_initial=50 * batch_num, lr_min_rate=0.01, warmup_lr_init=5e-7,
-                                  warmup_t=batch_num, t_in_epochs=False)
-    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=5000, eta_min=1e-5)
+
+    optimizer = torch.optim.Adam(net.parameters(), lr=4e-3)
+    scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
     criterion = nn.CrossEntropyLoss()
 
     train(net, args.net_name, args.use_gpu, train_data, valid_data, args.cut_pic_size, args.cut_pic_num,

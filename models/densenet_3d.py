@@ -156,7 +156,6 @@ class DenseNet(nn.Module):
         out = F.adaptive_avg_pool3d(out, output_size=(1, 1, 1))
         out = out.view(features.size(0), -1)
         # before classifier, out.shape = batch_size*1024
-        # TODO Add LAA feature
         out = self.classifier(out)
         return out
 

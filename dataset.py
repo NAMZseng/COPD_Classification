@@ -1,11 +1,9 @@
 import os
-import random
 
 import pandas as pd
 import SimpleITK as sitk
 import numpy as np
 import nibabel as nib
-import cv2 as cv
 from scipy.ndimage import zoom
 from PIL import Image
 from lungmask.main import get_ct_dirs
@@ -184,6 +182,38 @@ def load_3d_datapath_label(data_root_path, label_path):
     return data_path_with_label
 
 
+train_valid_lrf_path = '/data/zengnanrong/label_original_match_ct_4_train_valid.xlsx'
+test_lrf_path = '/data/zengnanrong/label_original_match_ct_4_test.xlsx'
+train_valid_lrf_df = pd.read_excel(train_valid_lrf_path, sheet_name='Sheet1')
+train_valid_lrf = np.array(train_valid_lrf_df)
+test_lrf_df = pd.read_excel(test_lrf_path, sheet_name='Sheet1')
+test_lrf = np.array(test_lrf_df)
+
+
+def load_3d_npy_datapath_label(data_root_path, label_path):
+    """
+    加载陈梓然处理的3d npy数据路径，并为其加上对应标签
+    :param data_root_path:
+    :param label_path:
+    :return:
+    """
+    label_df = pd.read_excel(label_path, sheet_name='Sheet1')
+
+    data_path_with_label = [[], [], [], []]
+    # multi_scale = ['', '_hw128_d128', '_hw256_d128', '_hw256_d64']  # 第一个''表示hw128_d64
+    multi_scale = ['']  # 第一个''表示hw128_d64
+    for i in range(len(label_df)):
+        # 训练时预测的标签范围为[0,3]
+        label = label_df['GOLDCLA'][i] - 1
+        for scale in multi_scale:
+            scale_image_path = os.path.join(data_root_path, label_df['subject'][i] + scale + '.npy')
+            if os.path.exists(scale_image_path):
+                data_path_with_label[label].append(
+                    {'image_path': scale_image_path, 'label': label, 'dir': label_df['subject'][i], 'index': i})
+
+    return data_path_with_label
+
+
 def load_dicom_series(data_dic, cut_pic_num):
     path = data_dic['image_path']
 
@@ -247,35 +277,48 @@ def load_dicom_series(data_dic, cut_pic_num):
     return image_array
 
 
-def load_data(data_dic, cut_pic_size, cut_pic_num):
+def load_data(data_dic, cut_pic_size, cut_pic_num, phase):
     path = data_dic['image_path']
     if path[-4:] == '.png':  # for 1316 dataset
         image = Image.open(path)  # (512, 512)
-        image_array = [np.array(image)] # (1, 512, 512)
+        image_array = [np.array(image)]  # (1, 512, 512)
         image_array = np.array(image_array)
         z, x, y = image_array.shape
         if cut_pic_size:
             image_array = zoom(image_array, (1, 224 / x, 224 / y))
+    elif path[-4:] == '.npy':
+        image_array = np.load(path)  # (1, 128, 128, 64)
+        image_array = image_array.swapaxes(1, 3)  # (1, 64, 128, 128)
+
+        # 获取对应的组学特征
+        index = data_dic['index']
+        if phase == 'train_valid':
+            lrf = train_valid_lrf[index][4:]
+        elif phase == 'test':
+            lrf = test_lrf[index][4:]
+        return image_array, lrf
+
+
     elif os.path.isfile(path):  # for single dicom slice
         dicom_image = sitk.ReadImage(path)
-        image_array = sitk.GetArrayFromImage(dicom_image) # (1, 512, 512)
+        image_array = sitk.GetArrayFromImage(dicom_image)  # (1, 512, 512)
         z, x, y = image_array.shape
         if cut_pic_size:
             image_array = zoom(image_array, (1, 224 / x, 224 / y))
-    else:  # for dicom series
-        image_array = load_dicom_series(data_dic, cut_pic_num) # (N, 512, 512)
+    else:  # for dicom series or nii
+        image_array = load_dicom_series(data_dic, cut_pic_num)  # (N, 512, 512)
         z, x, y = image_array.shape
         if cut_pic_size:
-            image_array = zoom(image_array, (64 / z, 224 / x, 224 / y))
+            image_array = zoom(image_array, (100 / z, 224 / x, 224 / y))
         # image_array = zoom(image_array, (100 / z, 1, 1))
         image_array = image_array.tolist()
 
         # make the shape of image_array from (depth,high,width) to (channel,depth,high,width), here channel = 1
-        # image_array = [image_array]
+        image_array = [image_array]
 
         # for efficientV2 and swin-transformer, make image_array_3d shape:(depth,channel,high,width)
-        for i in range(len(image_array)):
-            image_array[i] = [image_array[i]]
+        # for i in range(len(image_array)):
+        #     image_array[i] = [image_array[i]]
 
         image_array = np.array(image_array)
 
@@ -301,11 +344,13 @@ if __name__ == "__main__":
     # data_root_path = "/data/zengnanrong/CTDATA/test/"
     # label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
     # data_root_path = "/data/zengnanrong/CTDATA/train_valid/"
-    data_root_path = "/data/zengnanrong/dataset1316/test"
-    # label_path = '/data/zengnanrong/label_match_ct_4_range_train_valid.xlsx'
+    # data_root_path = "/data/zengnanrong/dataset1316/test"
+    data_root_path = "/data/zengnanrong/lung_seg_normal_resize"
+    label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
     # data = load_2d_datapath_label(data_root_path, label_path, False, False)
     # data = load_3d_datapath_label(data_root_path, label_path)
-    data = load_1316_datapath_label(data_root_path)
+    data = load_3d_npy_datapath_label(data_root_path, label_path)
+    # data = load_1316_datapath_label(data_root_path)
     print(data[0][0])
     print(len(data[0]))
     print(len(data[1]))
