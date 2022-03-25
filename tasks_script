@@ -118,6 +118,7 @@
 
 
   --------------------------------------resnet 3d------------------------------------
+  train
    nohup python -u train.py \
  --net_name resnet_3D \
  --data_root_path /data/zengnanrong/lung_seg_normal_resize \
@@ -125,10 +126,21 @@
  --batch_size 4 \
  --num_epochs 60 \
  --learning_rate 0.001 \
- --save_model_name resnet10_img_multi_scale_finetune.pkl \
- --result_file resnet10_img_multi_scale_finetune.xlsx \
+ --save_model_name resnet10_img_multi_scale_finetune.pth \
  --cuda_device 1 \
  > ./log/3D_resnet/resnet10_img_multi_scale_finetune.log &
+
+ test
+    nohup python -u train.py \
+ --net_name resnet_3D \
+ --data_root_path /data/zengnanrong/lung_seg_normal_resize \
+ --use_gpu True \
+ --batch_size 4 \
+ --num_epochs 60 \
+ --save_model_name resnet10_img_multi_scale_finetune.pth \
+ --result_file resnet10_img_multi_scale_finetune.xlsx \
+ --cuda_device 1 \
+ > ./log/3D_resnet/resnet10_img_multi_scale_finetune_test.log &
 
 
 

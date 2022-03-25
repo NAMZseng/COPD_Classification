@@ -208,7 +208,7 @@ def resnet18(**kwargs):
 from models import resnet
 
 
-def generate_model(model_depth=10, use_gpu=True, gpu_id=['1'],
+def generate_model(model_depth=10, use_gpu=True, gpu_id=['1'], phase='train',
                    pretrain_path='/home/MHISS/zengnanrong/COPD/checkpoint/resnet_10_23dataset.pth'):
     new_layer_names = ['avgpool', 'fc']
 
@@ -232,7 +232,7 @@ def generate_model(model_depth=10, use_gpu=True, gpu_id=['1'],
         net_dict = model.state_dict()
 
     # load pretrain
-    if pretrain_path:
+    if phase != 'test' and pretrain_path:
         print('loading pretrained model {}'.format(pretrain_path))
         pretrain = torch.load(pretrain_path)
         pretrain_dict = {k: v for k, v in pretrain['state_dict'].items() if k in net_dict.keys()}
