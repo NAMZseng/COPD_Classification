@@ -30,8 +30,8 @@ def resize_volume(img):
     """Resize across z-axis"""
     # Set the desired depth
     desired_depth = 128
-    desired_width = 256
-    desired_height = 256
+    desired_width = 128
+    desired_height = 128
     # Get current depth
     current_width, current_height, current_depth = img.shape
     # Compute depth factor
@@ -58,30 +58,30 @@ def process_scan(path_dic):
 
     ctarray = np.array([volume])
 
-    np.save("/data/zengnanrong/lung_seg_normal_resize/" + dir + "_hw256_d128.npy", ctarray)
-    print('save: ' + dir + "_hw256_d128.npy")
+    np.save("/data/zengnanrong/lung_seg_normal_resize/" + dir + "_hw128_d128.npy", ctarray)
+    print('save: ' + dir + "_hw128_d128.npy")
 
 
 if __name__ == "__main__":
-    traindata = pd.read_excel(io=r'/data/zengnanrong/label_match_ct_4_range_train_valid.xlsx')
-    traindata = np.array(traindata)
-    train_paths = []
-    for i in range(len(traindata)):
-        path = "/data/LUNG_SEG/train_valid/" + traindata[i, 1] + '/'
-        dirs = os.listdir(path)
-        ctpath = path + dirs[0] + '/' + dirs[0] + '.nii'
-        train_paths.append({'ctpath': ctpath, 'dir': traindata[i, 1]})
-
-    # valdata = pd.read_excel(io=r'/data/zengnanrong/label_match_ct_4_range_test.xlsx')
-    # valdata = np.array(valdata)
-    # val_paths = []
-    # for i in range(len(valdata)):
-    #     path = "/data/LUNG_SEG/test/" + valdata[i, 1] + '/'
+    # traindata = pd.read_excel(io=r'/data/zengnanrong/label_match_ct_4_range_train_valid.xlsx')
+    # traindata = np.array(traindata)
+    # train_paths = []
+    # for i in range(len(traindata)):
+    #     path = "/data/LUNG_SEG/train_valid/" + traindata[i, 1] + '/'
     #     dirs = os.listdir(path)
     #     ctpath = path + dirs[0] + '/' + dirs[0] + '.nii'
-    #     val_paths.append({'ctpath': ctpath, 'dir': traindata[i, 1]})
+    #     train_paths.append({'ctpath': ctpath, 'dir': traindata[i, 1]})
+
+    valdata = pd.read_excel(io=r'/data/zengnanrong/label_match_ct_4_range_test.xlsx')
+    valdata = np.array(valdata)
+    val_paths = []
+    for i in range(len(valdata)):
+        path = "/data/LUNG_SEG/test/" + valdata[i, 1] + '/'
+        dirs = os.listdir(path)
+        ctpath = path + dirs[0] + '/' + dirs[0] + '.nii'
+        val_paths.append({'ctpath': ctpath, 'dir': valdata[i, 1]})
 
     pool = Pool(6)
-    pool.map(process_scan, train_paths)
+    pool.map(process_scan, val_paths)
     pool.close()
     pool.join()

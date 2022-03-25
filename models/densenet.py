@@ -1,8 +1,6 @@
 import torch
 from torchvision import models
 
-from dataset import load_data
-
 
 def densenet121(channels, out_features, use_gpu, drop_rate):
     model = models.densenet121(drop_rate=drop_rate)

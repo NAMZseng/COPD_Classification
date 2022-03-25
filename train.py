@@ -8,18 +8,20 @@ from torch import nn
 from torch.autograd import Variable
 from torch.optim import lr_scheduler
 
-from dataset import load_2d_datapath_label, load_data, load_3d_datapath_label, load_1316_datapath_label, \
+from utils.dataset import load_2d_datapath_label, load_data, load_3d_datapath_label, load_1316_datapath_label, \
     load_3d_npy_datapath_label
 from datetime import datetime
 
 from models.densenet import densenet121
-from models.resnet import resnet18
-from models import densenet_3d, resnet_3d, swin_tranformer
+from models.resnet import generate_model
+from models.resnet18 import resnet18
+from models import densenet_3d, swin_tranformer
 
 from torch.utils.tensorboard import SummaryWriter
 from global_settings import CHECKPOINT_PATH, LOG_DIR, TIME_NOW, RESULT_DIR
 
 import argparse
+from utils.logger import log
 
 
 def next_batch(batch_size, index_in_total, data, cut_pic_size, cut_pic_num, phase):
@@ -54,86 +56,168 @@ def next_batch(batch_size, index_in_total, data, cut_pic_size, cut_pic_num, phas
 
 
 def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_num, batch_size, num_epochs, optimizer,
-          scheduler, criterion, save_model_name):
+          scheduler, criterion, save_model_name, scale_num):
     prev_time = datetime.now()
 
-    # use tensorboard
     if not os.path.exists(LOG_DIR):
         os.mkdir(LOG_DIR)
 
     writer = SummaryWriter(log_dir=os.path.join(LOG_DIR, net_name, TIME_NOW))
 
     phase = 'train_valid'
-    max_vail_acc = 0.0
+    global_max_valid_acc = 0.0
 
     checkpoint_dir = os.path.join(CHECKPOINT_PATH, net_name)
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
 
+    # 采用drop_last方式
+    # 每个scale的数据量都是相同的，所以取第一个来计算长度即可
+    batch_num_train = int(len(train_data[0]) / batch_size)
+    batch_num_valid = int(len(valid_data[0]) / batch_size)
+
     for epoch in range(num_epochs):
-        random.shuffle(train_data)
-        random.shuffle(valid_data)
+        net.train()
+        for scale in range(scale_num):
+            random.shuffle(train_data[scale])
+            random.shuffle(valid_data[scale])
+
         train_loss = 0.0
         train_acc = 0
-        index_in_trainset = 0
+        index_in_trainset = [0] * scale_num
 
-        net = net.train()
+        scheduler.step()
+        log.info('lr = {}'.format(scheduler.get_lr()))
 
-        if len(train_data) % batch_size == 0:
-            batch_num = int(len(train_data) / batch_size)
-        else:
-            batch_num = int(len(train_data) / batch_size) + 1
+        for batch in range(batch_num_train):
+            for scale in range(scale_num):
+                batch_images, batch_lrf, batch_labels, _, index_in_trainset[scale] = next_batch(batch_size, index_in_trainset[scale],
+                                                                                                train_data[scale], cut_pic_size,
+                                                                                                cut_pic_num, phase)
+                batch_images = torch.tensor(batch_images, dtype=torch.float)
+                batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
 
-        for batch in range(batch_num):
-            batch_images, batch_lrf, batch_labels, _, index_in_trainset = next_batch(batch_size, index_in_trainset, train_data,
-                                                                                     cut_pic_size, cut_pic_num, phase)
-            batch_images = torch.tensor(batch_images, dtype=torch.float)
-            batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
+                if use_gpu:
+                    batch_images = Variable(batch_images.cuda())
+                    batch_lrf = Variable(batch_lrf.cuda())
+                    batch_labels = Variable(torch.tensor(batch_labels).cuda())
+                else:
+                    batch_images = Variable(batch_images)
+                    batch_lrf = Variable(batch_lrf)
+                    batch_labels = Variable(torch.tensor(batch_labels))
 
-            if use_gpu:
-                batch_images = Variable(batch_images.cuda())
-                batch_lrf = Variable(batch_lrf.cuda())
-                batch_labels = Variable(torch.tensor(batch_labels).cuda())
-            else:
-                batch_images = Variable(batch_images)
-                batch_lrf = Variable(batch_lrf)
-                batch_labels = Variable(torch.tensor(batch_labels))
+                optimizer.zero_grad()  # 清除上一个batch计算的梯度,因为pytorch默认会累积梯度
+                output = net(batch_images, batch_lrf)
+                loss = criterion(output, batch_labels)  # 计算损失
+                loss = loss.requires_grad_()
+                loss.backward()  # 计算梯度
+                optimizer.step()  # 梯度更新
 
-            optimizer.zero_grad()  # 清除上一个batch计算的梯度,因为pytorch默认会累积梯度
-            output = net(batch_images, batch_lrf)
-            loss = criterion(output, batch_labels)  # 计算损失
-            loss = loss.requires_grad_()
-            loss.backward()  # 计算梯度
-            optimizer.step()  # 梯度更新
-
-            train_loss += loss.data
-            _, pred_label = output.max(1)
-            num_correct = pred_label.eq(batch_labels).sum()
-            train_acc += num_correct
+                train_loss += loss.data
+                _, pred_label = output.max(1)
+                num_correct = pred_label.eq(batch_labels).sum()
+                train_acc += num_correct
 
         # 评估
-        net = net.eval()
+        net.eval()
         with torch.no_grad():
-            if len(valid_data) % batch_size == 0:
-                batch_num = int(len(valid_data) / batch_size)
-            else:
-                batch_num = int(len(valid_data) / batch_size) + 1
-
             max_valid_acc = 0.0
-            min_valid_loss = 1000.0
+            min_valid_loss = 10000.0
 
             if net_name == 'densenet_3D':
-                valid_epoch = 5
+                valid_epoch = 5  # 由于densenet 3D采取的是从一个scan中随机抽取N张slices,为了减低偶然性，每次多评估几轮
             else:
                 valid_epoch = 1
             for i in range(valid_epoch):
                 valid_loss = 0
                 valid_acc = 0
-                index_in_validset = 0
-                for batch in range(batch_num):
-                    batch_images, batch_lrf, batch_labels, _, index_in_validset = next_batch(batch_size, index_in_validset,
-                                                                                             valid_data,
-                                                                                             cut_pic_size, cut_pic_num, phase)
+                index_in_validset = [0] * scale_num
+                for batch in range(batch_num_valid):
+                    for scale in range(scale_num):
+                        batch_images, batch_lrf, batch_labels, _, index_in_validset[scale] = next_batch(batch_size,
+                                                                                                        index_in_validset[scale],
+                                                                                                        valid_data[scale], cut_pic_size,
+                                                                                                        cut_pic_num, phase)
+                        batch_images = torch.tensor(batch_images, dtype=torch.float)
+                        batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
+
+                        if use_gpu:
+                            batch_images = Variable(batch_images.cuda())
+                            batch_lrf = Variable(batch_lrf.cuda())
+                            batch_labels = Variable(torch.tensor(batch_labels).cuda())
+                        else:
+                            batch_images = Variable(batch_images)
+                            batch_lrf = Variable(batch_lrf)
+                            batch_labels = Variable(torch.tensor(batch_labels))
+
+                        output = net(batch_images, batch_lrf)
+                        loss = criterion(output, batch_labels)
+                        valid_loss += loss.data
+                        _, pred_label = output.max(1)
+                        num_correct = pred_label.eq(batch_labels).sum()
+                        valid_acc += num_correct
+
+                if valid_acc / (len(valid_data[0]) * scale_num) > max_valid_acc:
+                    max_valid_acc = valid_acc / (len(valid_data[0]) * scale_num)
+                if valid_loss / (len(valid_data[0]) * scale_num) < min_valid_loss:
+                    min_valid_loss = valid_loss / (len(valid_data[0]) * scale_num)
+
+        train_loss = train_loss / (len(train_data[0]) * scale_num)
+        train_acc = train_acc / (len(train_data[0]) * scale_num)
+        epoch_str = ("Epoch %d. Train Loss: %f, Train Acc: %f, Valid Loss: %f, Valid Acc: %f, "
+                     % (epoch + 1, train_loss, train_acc, min_valid_loss, max_valid_acc))
+
+        writer.add_scalars('Loss', {'Train': train_loss, 'Valid': min_valid_loss}, epoch + 1)
+        writer.add_scalars('Accuracy', {'Train': train_acc, 'Valid': max_valid_acc}, epoch + 1)
+
+        if max_valid_acc > global_max_valid_acc:
+            global_max_valid_acc = max_valid_acc
+            torch.save(net, os.path.join(CHECKPOINT_PATH, net_name, save_model_name))
+
+        cur_time = datetime.now()
+        h, remainder = divmod((cur_time - prev_time).seconds, 3600)
+        m, s = divmod(remainder, 60)
+        time_str = "Time %02d:%02d:%02d" % (h, m, s)
+        prev_time = cur_time
+        print(epoch_str + time_str)
+
+    writer.close()
+
+
+def test(net_name, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, save_model_name, result_file, scale_num):
+    phase = 'test'
+    result_dir = os.path.join(RESULT_DIR, net_name)
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+
+    softmax = nn.Softmax(dim=1)
+
+    net = torch.load(os.path.join(CHECKPOINT_PATH, net_name, save_model_name))
+    net.eval()
+
+    with torch.no_grad():
+
+        batch_num = int(len(test_data[0]) / batch_size)
+
+        max_test_acc = 0.0
+
+        if net_name == 'densenet_3D':
+            test_epoch = 5
+        else:
+            test_epoch = 1
+        for i in range(test_epoch):
+            test_acc = 0
+            index_in_testset = [0] * scale_num
+            label_list = []
+            probability_predicted_list = []
+            label_predicted_list = []
+            dirs_list = []
+            for batch in range(batch_num):
+                for scale in range(scale_num):
+                    batch_images, batch_lrf, batch_labels, batch_dirs, index_in_testset[scale] = next_batch(batch_size,
+                                                                                                            index_in_testset[scale],
+                                                                                                            test_data[scale], cut_pic_size,
+                                                                                                            cut_pic_num, phase)
                     batch_images = torch.tensor(batch_images, dtype=torch.float)
                     batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
 
@@ -147,152 +231,25 @@ def train(net, net_name, use_gpu, train_data, valid_data, cut_pic_size, cut_pic_
                         batch_labels = Variable(torch.tensor(batch_labels))
 
                     output = net(batch_images, batch_lrf)
-                    loss = criterion(output, batch_labels)
-                    valid_loss += loss.data
+                    output = softmax(output)
                     _, pred_label = output.max(1)
                     num_correct = pred_label.eq(batch_labels).sum()
-                    valid_acc += num_correct
+                    test_acc += num_correct
 
-                if valid_acc / len(valid_data) > max_valid_acc:
-                    max_valid_acc = valid_acc / len(valid_data)
-                if valid_loss / len(valid_data) < min_valid_loss:
-                    min_valid_loss = valid_loss / len(valid_data)
+                    label_list.extend(batch_labels.cpu().numpy().tolist())
+                    probability_predicted_list.extend(output.cpu().numpy().tolist())
+                    label_predicted_list.extend(pred_label.cpu().numpy().tolist())
+                    dirs_list.extend(batch_dirs)
 
-        scheduler.step()
-
-        epoch_str = (
-                "Epoch %d. Train Loss: %f, Train Acc: %f, Valid Loss: %f, Valid Acc: %f, "
-                % (epoch + 1,
-                   train_loss / len(train_data), train_acc / len(train_data),
-                   min_valid_loss, max_valid_acc))
-
-        writer.add_scalars('Loss', {'Train': train_loss / len(train_data), 'Valid': min_valid_loss}, epoch + 1)
-        writer.add_scalars('Accuracy', {'Train': train_acc / len(train_data), 'Valid': max_valid_acc}, epoch + 1)
-
-        if valid_acc / len(valid_data) > max_vail_acc:
-            max_vail_acc = valid_acc / len(valid_data)
-            torch.save(net, os.path.join(CHECKPOINT_PATH, net_name, save_model_name))
-
-        cur_time = datetime.now()
-        h, remainder = divmod((cur_time - prev_time).seconds, 3600)
-        m, s = divmod(remainder, 60)
-        time_str = "Time %02d:%02d:%02d" % (h, m, s)
-        prev_time = cur_time
-        print(epoch_str + time_str)
-
-    writer.close()
-
-
-def test(net_name, use_gpu, test_data, cut_pic_size, cut_pic_num, batch_size, save_model_name, result_file):
-    phase = 'test'
-    result_dir = os.path.join(RESULT_DIR, net_name)
-    if not os.path.exists(result_dir):
-        os.makedirs(result_dir)
-
-    net = torch.load(os.path.join(CHECKPOINT_PATH, net_name, save_model_name))
-    net = net.eval()
-
-    with torch.no_grad():
-        if len(test_data) % batch_size == 0:
-            batch_num = int(len(test_data) / batch_size)
-        else:
-            batch_num = int(len(test_data) / batch_size) + 1
-
-        max_test_acc = 0.0
-
-        if net_name == 'densenet_3D':
-            test_epoch = 5
-        else:
-            test_epoch = 1
-        for i in range(test_epoch):
-            test_acc = 0
-            index_in_testset = 0
-            label_list = []
-            probability_predicted_list = []
-            label_predicted_list = []
-            dirs_list = []
-            for batch in range(batch_num):
-                batch_images, batch_lrf, batch_labels, batch_dirs, index_in_testset = next_batch(batch_size, index_in_testset,
-                                                                                                 test_data, cut_pic_size,
-                                                                                                 cut_pic_num, phase)
-                batch_images = torch.tensor(batch_images, dtype=torch.float)
-                batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
-
-                if use_gpu:
-                    batch_images = Variable(batch_images.cuda())
-                    batch_lrf = Variable(batch_lrf.cuda())
-                    batch_labels = Variable(torch.tensor(batch_labels).cuda())
-                else:
-                    batch_images = Variable(batch_images)
-                    batch_lrf = Variable(batch_lrf)
-                    batch_labels = Variable(torch.tensor(batch_labels))
-
-                output = net(batch_images, batch_lrf)
-                softmax = nn.Softmax(dim=1)
-                output_softmax = softmax(output)
-
-                _, pred_label = output.max(1)
-                num_correct = pred_label.eq(batch_labels).sum()
-                test_acc += num_correct
-
-                label_list.extend(batch_labels.cpu().numpy().tolist())
-                probability_predicted_list.extend(output_softmax.cpu().numpy().tolist())
-                label_predicted_list.extend(pred_label.cpu().numpy().tolist())
-                dirs_list.extend(batch_dirs)
-
-            print("Test Acc: %f" % (test_acc / len(test_data)))
-
-            if (test_acc / len(test_data)) > max_test_acc:
-                max_test_acc = test_acc / len(test_data)
+            test_acc = test_acc / (len(test_data[0]) * scale_num)
+            if test_acc > max_test_acc:
+                print("Test Acc: %f" % test_acc)
+                max_test_acc = test_acc
                 df = pd.DataFrame(probability_predicted_list, columns=['p0', 'p1', 'p2', 'p3'])
                 df.insert(df.shape[1], 'label-pre', label_predicted_list)
                 df.insert(df.shape[1], 'label_gt', label_list)
                 df.insert(df.shape[1], 'dirs', dirs_list)
                 df.to_excel(os.path.join(RESULT_DIR, net_name, result_file))
-
-
-def count_person_result(input_file, output_file):
-    """
-    将每个病例的所有测试图像的四个等级的预测概率求平均
-    :param input_file:
-    :param output_file:
-    :return:
-    """
-    input_df = pd.read_excel(input_file, sheet_name='Sheet1')
-    input_df.sort_values(by='dirs', inplace=True)
-
-    output_list = []
-    count = 0
-    temp_row = [0.0, 0.0, 0.0, 0.0, 0, 0, 'test']
-    for i in range(len(input_df['dirs'])):
-        temp_row[0] = temp_row[0] + input_df['p0'][i]
-        temp_row[1] = temp_row[1] + input_df['p1'][i]
-        temp_row[2] = temp_row[2] + input_df['p2'][i]
-        temp_row[3] = temp_row[3] + input_df['p3'][i]
-        count = count + 1
-
-        if i + 1 < len(input_df['dirs']) and input_df['dirs'][i] is not input_df['dirs'][i + 1]:
-            for j in range(4):
-                temp_row[j] = temp_row[j] / count
-            temp_row[4] = temp_row[:4].index(max(temp_row[:4]))
-            temp_row[5] = input_df['label_gt'][i]
-            temp_row[6] = input_df['dirs'][i]
-            output_list.append(temp_row)
-
-            count = 0
-            temp_row = [0.0, 0.0, 0.0, 0.0, 0, 0, 'test']
-
-        if i + 1 == len(input_df['dirs']):
-            # last line
-            for j in range(4):
-                temp_row[j] = temp_row[j] / count
-            temp_row[4] = temp_row[:4].index(max(temp_row[:4]))
-            temp_row[5] = input_df['label_gt'][i]
-            temp_row[6] = input_df['dirs'][i]
-            output_list.append(temp_row)
-
-    df = pd.DataFrame(output_list, columns=['p0', 'p1', 'p2', 'p3', 'label-pre', 'label_gt', 'dirs'])
-    df.to_excel(output_file)
 
 
 if __name__ == '__main__':
@@ -308,22 +265,23 @@ if __name__ == '__main__':
     parser.add_argument('--use_gpu', type=bool, default=True, help='是否只使用GPU')
     parser.add_argument('--batch_size', type=int, default=8, help='batch size, 2d:20, 3d:2')
     parser.add_argument('--num_epochs', type=int, default=100, help='num of epochs')
-    parser.add_argument('--drop_rate', type=float, default=0.1, help='dropout rate,2D:0.5，3D：0.2')
-    parser.add_argument('--save_model_name', type=str, default='resnet34_img.pkl',
+    parser.add_argument('--learning_rate', type=float, default=0.001, help='learning_rate')
+    parser.add_argument('--save_model_name', type=str, default='resnet10_img_hw128_d64_finetune.pkl',
                         help='model save name')
-    parser.add_argument('--result_file', type=str, default='resnet34_img.xlsx',
+    parser.add_argument('--result_file', type=str, default='resnet10_img_hw128_d64_finetune.xlsx',
                         help='test result filename')
-    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default='1', help='使用哪块GPU')
+    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default=['1'], help='使用哪块GPU')
 
     args_in = sys.argv[1:]
     args = parser.parse_args(args_in)
 
-    if args.use_gpu:
-        os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_device
-        torch.cuda.empty_cache()
+    # if args.use_gpu:
+    #     os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_device
+    #     torch.cuda.empty_cache()
 
     channels = 1
     num_classes = 4  # 4分类
+    scale_num = 4
 
     train_valid_label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
     test_label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
@@ -344,7 +302,14 @@ if __name__ == '__main__':
     elif args.net_name == 'resnet_3D':
         train_valid_datapath_label = load_3d_npy_datapath_label(args.data_root_path, train_valid_label_path)
         test_datapath_label = load_3d_npy_datapath_label(args.data_root_path, test_label_path)
-        net = resnet_3d.generate_model(34, args.use_gpu, n_input_channels=channels, n_classes=num_classes)
+        # net = resnet_3d.generate_model(10, args.use_gpu, n_input_channels=channels, n_classes=num_classes)
+        net, parameters = generate_model(model_depth=10, use_gpu=args.use_gpu, gpu_id=args.cuda_device)
+        params = [
+            {'params': parameters['base_parameters'], 'lr': args.learning_rate},
+            {'params': parameters['new_parameters'], 'lr': args.learning_rate * 100}
+        ]
+        optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=1e-3)
+        scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     elif args.net_name == 'swin_base':
         train_valid_datapath_label = load_3d_datapath_label(train_valid_data_root_path, train_valid_label_path)
         test_datapath_label = load_3d_datapath_label(test_data_root_path, test_label_path)
@@ -354,35 +319,26 @@ if __name__ == '__main__':
         test_datapath_label = load_1316_datapath_label('/data/zengnanrong/dataset1316/test')
         net = resnet18(channels, num_classes, args.use_gpu)
 
-    train_data = []
-    valid_data = []
-    test_data = []
+    train_data = [[], [], [], []]
+    valid_data = [[], [], [], []]
+    test_data = [[], [], [], []]
 
     for label in range(4):
         # 每个标签的数据按 训练集：验证集：测试集 6:1:3
-        train_index = int(len(train_valid_datapath_label[label]) * 6 / 7)
-
-        while train_valid_datapath_label[label][train_index]['dir'] == \
-                train_valid_datapath_label[label][train_index + 1]['dir']:
+        train_index = int(len(train_valid_datapath_label[0][label]) * 6 / 7)
+        while train_valid_datapath_label[0][label][train_index]['dir'] == train_valid_datapath_label[0][label][train_index + 1]['dir']:
             train_index = train_index + 1
-
         train_index = train_index + 1
+        for scale in range(4):
+            train_data[scale].extend(train_valid_datapath_label[scale][label][:train_index])
+            valid_data[scale].extend(train_valid_datapath_label[scale][label][train_index:])
+            test_data[scale].extend(test_datapath_label[scale][label])
 
-        train_data.extend(train_valid_datapath_label[label][:train_index])
-        valid_data.extend(train_valid_datapath_label[label][train_index:])
-        test_data.extend(test_datapath_label[label])
-
-    # for swin-base
-    if len(train_data) % args.batch_size == 0:
-        batch_num = int(len(train_data) / args.batch_size)
-    else:
-        batch_num = int(len(train_data) / args.batch_size) + 1
-
-    optimizer = torch.optim.Adam(net.parameters(), lr=4e-3)
-    scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
+    # optimizer = torch.optim.Adam(net.parameters(), lr=4e-3, weight_decay=0.0001)
+    # scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.9)
     criterion = nn.CrossEntropyLoss()
 
     train(net, args.net_name, args.use_gpu, train_data, valid_data, args.cut_pic_size, args.cut_pic_num,
-          args.batch_size, args.num_epochs, optimizer, scheduler, criterion, args.save_model_name)
+          args.batch_size, args.num_epochs, optimizer, scheduler, criterion, args.save_model_name, scale_num)
     test(args.net_name, args.use_gpu, test_data, args.cut_pic_size, args.cut_pic_num, args.batch_size,
-         args.save_model_name, args.result_file)
+         args.save_model_name, args.result_file, scale_num)

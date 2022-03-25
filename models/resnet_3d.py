@@ -46,6 +46,7 @@ class BasicBlock(nn.Module):
 
         out = self.conv1(x)
         out = self.bn1(out)
+
         out = self.relu(out)
 
         out = self.conv2(out)
@@ -153,12 +154,10 @@ class ResNet(nn.Module):
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
 
         self.sigmoid = nn.Sigmoid()
-        # self.conv_2d = nn.Conv2d(1, 1, kernel_size=2)
 
         # 组学1316个特征降维到与卷积提取的特征同一维度
         self.fc_lrf = nn.Linear(1316, block_inplanes[3] * block.expansion)
         self.fc_img_lrf = nn.Linear(block_inplanes[3] * block.expansion * 2, block_inplanes[3] * block.expansion)
-
         self.fc = nn.Linear(block_inplanes[3] * block.expansion, n_classes)
 
         for m in self.modules():
@@ -227,16 +226,14 @@ class ResNet(nn.Module):
         x_img = x_img.view(x_img.size(0), -1)
 
         # TODO 对lrf使用 self-Attention
-        x_lrf = self.sigmoid(x_lrf)  # 归一化到(0,1)
+        x_lrf = self.sigmoid(x_lrf)
 
         x_lrf = self.fc_lrf(x_lrf)  # 1316 to 512
-
         x = torch.cat((x_img, x_lrf), dim=1)  # dim=1:按列拼接，即列数增加，行数不变
-
-        # MLP
         x = self.fc_img_lrf(x)  # 1024 to 512
         x = self.relu(x)
-        out = self.fc(x)  # 512 to 4
+
+        out = self.fc(x_img)  # 512 to 4
 
         return out
 
