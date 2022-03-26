@@ -9,8 +9,6 @@ from dataset import count_person_result
 #                     '../result/resnet_3D/resnet10_img_multi_scale_finetune_dir.xlsx')
 diabetes = pd.read_excel('../result/resnet_3D/resnet10_img_multi_scale_finetune_dir.xlsx')
 
-# diabetes = pd.read_excel('./result/3D_densenet/test_3d_seg_cut_size_cut_num_precise_50epoch_dir_0.2_step.xlsx')
-
 fact = diabetes['label_gt']
 guess = diabetes['label-pre']
 
