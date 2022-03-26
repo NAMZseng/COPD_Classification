@@ -6,7 +6,6 @@ import numpy as np
 import nibabel as nib
 from scipy.ndimage import zoom
 from PIL import Image
-from lungmask.main import get_ct_dirs
 
 
 def label_preprocess(label_path, output_path):
@@ -51,35 +50,31 @@ def find_lung_range(label_path, data_root_path, output_path):
     :param data_root_path:
     :return:
     """
-    ct_dir = get_ct_dirs(data_root_path)
-
     label_df = pd.read_excel(label_path, sheet_name='Sheet1')
     label_df.insert(label_df.shape[1], 'appear_index', 0)
     label_df.insert(label_df.shape[1], 'disappear_index', 0)
 
-    for i in range(len(ct_dir)):
-        data_dir_name = ct_dir[i]
-        if data_dir_name == label_df['subject'][i]:
-            path = os.path.join(data_root_path, data_dir_name)
-            for root, dirs, files in os.walk(path):
-                if len(files) == 0:
-                    continue
+    for i in range(label_df['subject']):
+        path = os.path.join(data_root_path, label_df['subject'][i])
+        for root, dirs, files in os.walk(path):
+            if len(files) == 0:
+                continue
 
-                len_files = len(files)
-                files.sort()
-                for appear_index in range(len_files):
-                    image_path = os.path.join(root, files[appear_index])
-                    if exist_lung(image_path):
-                        print(i)
-                        label_df['appear_index'][i] = appear_index
-                        break
-                for index in range(len_files):
-                    disappear_index = len_files - 1 - index
-                    image_path = os.path.join(root, files[disappear_index])
-                    if exist_lung(image_path):
-                        print(i)
-                        label_df['disappear_index'][i] = disappear_index
-                        break
+            len_files = len(files)
+            files.sort()
+            for appear_index in range(len_files):
+                image_path = os.path.join(root, files[appear_index])
+                if exist_lung(image_path):
+                    print(i)
+                    label_df['appear_index'][i] = appear_index
+                    break
+            for index in range(len_files):
+                disappear_index = len_files - 1 - index
+                image_path = os.path.join(root, files[disappear_index])
+                if exist_lung(image_path):
+                    print(i)
+                    label_df['disappear_index'][i] = disappear_index
+                    break
 
     label_df.to_excel(output_path)
 
@@ -106,46 +101,41 @@ def load_2d_datapath_label(data_root_path, label_path, cut_pic_num):
     :param cut: 是否截取包含肺区域的图像
     :return:
     """
-    ct_dir = get_ct_dirs(data_root_path)
-
     label_df = pd.read_excel(label_path, sheet_name='Sheet1')
 
     data_path_with_label = [[], [], [], []]
 
-    for i in range(len(ct_dir)):
-        data_dir_name = ct_dir[i]
+    for i in range(len(label_df['subject'])):
+        path = os.path.join(data_root_path, label_df['subject'][i])
+        for root, dirs, files in os.walk(path):
+            if len(files) == 0:
+                continue
 
-        if data_dir_name == label_df['subject'][i]:
-            path = os.path.join(data_root_path, data_dir_name)
-            for root, dirs, files in os.walk(path):
-                if len(files) == 0:
-                    continue
+            if cut_pic_num == 'remain':
+                pass
+            elif cut_pic_num == 'precise':
+                files.sort()
+                appear_idx = label_df['appear_index'][i]
+                disappear_idx = label_df['disappear_index'][i]
 
-                if cut_pic_num == 'remain':
-                    pass
-                elif cut_pic_num == 'precise':
-                    files.sort()
-                    appear_idx = label_df['appear_index'][i]
-                    disappear_idx = label_df['disappear_index'][i]
+                if '.xml' in files[0].lower():
+                    appear_idx = appear_idx + 1
+                    disappear_idx = disappear_idx + 1
 
-                    if '.xml' in files[0].lower():
-                        appear_idx = appear_idx + 1
-                        disappear_idx = disappear_idx + 1
+                files = files[appear_idx:disappear_idx + 1]
+            elif cut_pic_num == 'rough':
+                files.sort()
+                start_idx = int(len(files) / 6)
+                end_idx = len(files) - start_idx
+                files = files[start_idx:end_idx]
 
-                    files = files[appear_idx:disappear_idx + 1]
-                elif cut_pic_num == 'rough':
-                    files.sort()
-                    start_idx = int(len(files) / 6)
-                    end_idx = len(files) - start_idx
-                    files = files[start_idx:end_idx]
-
-                for item in files:
-                    if '.dcm' in item.lower():
-                        image_path = os.path.join(root, item)
-                        # 训练时预测的标签范围为[0,3]
-                        label = label_df['GOLDCLA'][i] - 1
-                        data_path_with_label[label].append(
-                            {'image_path': image_path, 'label': label, 'dir': os.path.split(root)[1]})
+            for item in files:
+                if '.dcm' in item.lower():
+                    image_path = os.path.join(root, item)
+                    # 训练时预测的标签范围为[0,3]
+                    label = label_df['GOLDCLA'][i] - 1
+                    data_path_with_label[label].append(
+                        {'image_path': image_path, 'label': label, 'dir': os.path.split(root)[1]})
 
     return data_path_with_label
 
@@ -158,36 +148,23 @@ def load_3d_datapath_label(data_root_path, label_path):
     :param label_path:
     :return:
     """
-    ct_dir = get_ct_dirs(data_root_path)
-
     label_df = pd.read_excel(label_path, sheet_name='Sheet1')
 
     data_path_with_label = [[], [], [], []]
 
-    for i in range(len(ct_dir)):
-        data_dir_name = ct_dir[i]
+    for i in range(len(label_df['subject'])):
+        path = os.path.join(data_root_path, label_df['subject'][i])
 
-        if data_dir_name == label_df['subject'][i]:
-            path = os.path.join(data_root_path, data_dir_name)
-
-            for root, dirs, files in os.walk(path):
-                if len(dirs) == 1:
-                    image_path = os.path.join(root, dirs[0])
-                    # 训练时预测的标签范围为[0,3]
-                    label = label_df['GOLDCLA'][i] - 1
-                    data_path_with_label[label].append({'image_path': image_path, 'label': label, 'dir': dirs[0],
-                                                        'appear_index': label_df['appear_index'][i],
-                                                        'disappear_index': label_df['disappear_index'][i]})
+        for root, dirs, files in os.walk(path):
+            if len(dirs) == 1:
+                image_path = os.path.join(root, dirs[0])
+                # 训练时预测的标签范围为[0,3]
+                label = label_df['GOLDCLA'][i] - 1
+                data_path_with_label[label].append({'image_path': image_path, 'label': label, 'dir': dirs[0],
+                                                    'appear_index': label_df['appear_index'][i],
+                                                    'disappear_index': label_df['disappear_index'][i]})
 
     return data_path_with_label
-
-
-train_valid_lrf_path = '/data/zengnanrong/label_original_match_ct_4_train_valid.xlsx'
-test_lrf_path = '/data/zengnanrong/label_original_match_ct_4_test.xlsx'
-train_valid_lrf_df = pd.read_excel(train_valid_lrf_path, sheet_name='Sheet1')
-train_valid_lrf = np.array(train_valid_lrf_df)
-test_lrf_df = pd.read_excel(test_lrf_path, sheet_name='Sheet1')
-test_lrf = np.array(test_lrf_df)
 
 
 def load_3d_npy_datapath_label(data_root_path, label_path):
@@ -203,8 +180,7 @@ def load_3d_npy_datapath_label(data_root_path, label_path):
     scale_num = 4  # 4个尺度
     data_path_with_label = [[[] for j in range(4)] for i in range(scale_num)]  # 创建(4,4,0)的三维数组
 
-    multi_scale = ['', '_hw128_d128', '_hw256_d128', '_hw256_d64']  # 第一个''表示hw128_d64
-    # multi_scale = ['_hw128_d128', '_hw256_d128']
+    multi_scale = ['_h280_w400_d100']
 
     for i in range(len(label_df)):
         # 训练时预测的标签范围为[0,3]
@@ -281,6 +257,14 @@ def load_dicom_series(data_dic, cut_pic_num):
     return image_array
 
 
+# train_valid_lrf_path = '/data/zengnanrong/label_original_match_ct_4_train_valid.xlsx'
+# test_lrf_path = '/data/zengnanrong/label_original_match_ct_4_test.xlsx'
+# train_valid_lrf_df = pd.read_excel(train_valid_lrf_path, sheet_name='Sheet1')
+# train_valid_lrf = np.array(train_valid_lrf_df)
+# test_lrf_df = pd.read_excel(test_lrf_path, sheet_name='Sheet1')
+# test_lrf = np.array(test_lrf_df)
+
+
 def load_data(data_dic, cut_pic_size, cut_pic_num, phase):
     path = data_dic['image_path']
     if path[-4:] == '.png':  # for 1316 dataset
@@ -291,8 +275,7 @@ def load_data(data_dic, cut_pic_size, cut_pic_num, phase):
         if cut_pic_size:
             image_array = zoom(image_array, (1, 224 / x, 224 / y))
     elif path[-4:] == '.npy':
-        image_array = np.load(path)  # (1, 128, 128, 64)
-        image_array = image_array.swapaxes(1, 3)  # (1, 64, 128, 128)
+        image_array = np.load(path)  # (1,D,H,W)
 
         # 获取对应的组学特征
         index = data_dic['index']
@@ -391,12 +374,12 @@ if __name__ == "__main__":
     # label_path = '/data/zengnanrong/label_match_ct_4_range.xlsx'
     # data_root_path = "/data/zengnanrong/CTDATA/test/"
     # label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
-    # data_root_path = "/data/zengnanrong/CTDATA/train_valid/"
+    data_root_path = "/data/LUNG_SEG/train_valid/"
     # data_root_path = "/data/zengnanrong/dataset1316/test"
-    data_root_path = "/data/zengnanrong/lung_seg_normal_resize"
+    # data_root_path = "/data/zengnanrong/lung_seg_normal_resize"
     label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
     # data = load_2d_datapath_label(data_root_path, label_path, False, False)
-    # data = load_3d_datapath_label(data_root_path, label_path)
-    data = load_3d_npy_datapath_label(data_root_path, label_path)
+    data = load_3d_datapath_label(data_root_path, label_path)
+    # data = load_3d_npy_datapath_label(data_root_path, label_path)
     # data = load_1316_datapath_label(data_root_path)
-    print(data[0][0][0])
+    print(data[0][0])

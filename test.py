@@ -91,7 +91,7 @@ if __name__ == '__main__':
     parser.add_argument('--cut_pic_size', type=bool, default=True, help='是否将图片裁剪压缩')
     parser.add_argument('--cut_pic_num', type=str, choices=['remain', 'precise', 'rough'], default='precise',
                         help='是否只截去不含肺区域的图像，remain:不截，保留原始图像的个数，precise:精筛，rough:粗筛，直接截去上下各1/6的图像数量')
-    parser.add_argument('--batch_size', type=int, default=8, help='batch size, 2d:20, 3d:2')
+    parser.add_argument('--batch_size', type=int, default=4, help='batch size, 2d:20, 3d:2')
     parser.add_argument('--num_epochs', type=int, default=100, help='num of epochs')
     parser.add_argument('--save_model_name', type=str, default='resnet10_img_multi_scale_finetune.pth', help='checkpoint model name')
     parser.add_argument('--result_file', type=str, default='resnet10_img_multi_scale_finetune.xlsx',
