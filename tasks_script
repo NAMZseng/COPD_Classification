@@ -1,25 +1,26 @@
+ nohup python -u ./utils/data_process.py > ./utils/out.log &
+
 ----------------------------------train----------------------------------
    nohup python -u train.py \
  --net_name resnet_3D \
  --data_root_path /data/zengnanrong/lung_seg_normal_resize \
  --use_gpu True \
- --batch_size 2 \
- --num_epochs 60 \
- --learning_rate 0.001 \
+ --batch_size 8 \
+ --num_epochs 200 \
+ --learning_rate 0.0001 \
  --save_model_name resnet10_img_finetune.pth \
  --cuda_device 1 \
  > ./log/3D_resnet/resnet10_img_finetune_train.log &
 
  ----------------------------------test----------------------------------
-    nohup python -u train.py \
+    nohup python -u test.py \
  --net_name resnet_3D \
  --data_root_path /data/zengnanrong/lung_seg_normal_resize \
  --use_gpu True \
  --batch_size 2 \
- --num_epochs 60 \
  --save_model_name resnet10_img_finetune.pth \
  --result_file resnet10_img_finetune.xlsx \
- --cuda_device 1 \
+ --cuda_device 0 \
  > ./log/3D_resnet/resnet10_img_finetune_test.log &
 
 

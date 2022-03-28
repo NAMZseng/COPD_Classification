@@ -263,5 +263,5 @@ def generate_model(model_depth, use_gpu, **kwargs):
 
 
 if __name__ == '__main__':
-    model = generate_model(10, False, n_input_channels=1, n_classes=4)
+    model = generate_model(10, False)
     print(model)

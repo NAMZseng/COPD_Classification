@@ -78,9 +78,6 @@ def train(net, net_name, use_gpu, train_data, valid_data, batch_size, num_epochs
         train_acc = 0
         index_in_trainset = [0] * scale_num
 
-        scheduler.step()
-        log.info('lr = {}'.format(scheduler.get_lr()))
-
         for batch in range(batch_num_train):
             for scale in range(scale_num):
                 batch_images, batch_lrf, batch_labels, _, index_in_trainset[scale] = next_batch(batch_size, index_in_trainset[scale],
@@ -144,7 +141,7 @@ def train(net, net_name, use_gpu, train_data, valid_data, batch_size, num_epochs
         valid_loss = valid_loss / (len(valid_data[0]) * scale_num)
 
         epoch_str = ("Epoch %d. Train Loss: %f, Train Acc: %f, Valid Loss: %f, Valid Acc: %f, "
-                     % (epoch + 1, train_loss, train_acc, valid_acc, valid_loss))
+                     % (epoch + 1, train_loss, train_acc, valid_loss, valid_acc))
 
         writer.add_scalars('Loss', {'Train': train_loss, 'Valid': valid_loss}, epoch + 1)
         writer.add_scalars('Accuracy', {'Train': train_acc, 'Valid': valid_acc}, epoch + 1)
@@ -161,35 +158,33 @@ def train(net, net_name, use_gpu, train_data, valid_data, batch_size, num_epochs
         prev_time = cur_time
         print(epoch_str + time_str)
 
+        scheduler.step()
+        log.info('lr = {}'.format(scheduler.get_last_lr()))
+
     writer.close()
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--net_name', type=str, default='resnet_3D', choices=['resnet_3D'], help='使用的网络')
-    parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/lung_seg_normal_resize', help='输入数据的根路径')
-    parser.add_argument('--use_gpu', type=bool, default=True, help='是否只使用GPU')
-    parser.add_argument('--batch_size', type=int, default=8, help='batch size, 2d:20, 3d:2')
-    parser.add_argument('--num_epochs', type=int, default=100, help='num of epochs')
+    parser.add_argument('--net_name', type=str, default='resnet_3D', choices=['resnet_3D'], help='net model to use')
+    parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/lung_seg_normal_resize', help='input data path')
+    parser.add_argument('--use_gpu', type=bool, default=True, help='wether to use GPU')
+    parser.add_argument('--batch_size', type=int, default=8, help='batch size')
+    parser.add_argument('--num_epochs', type=int, default=200, help='num of epochs')
     parser.add_argument('--drop_rate', type=int, default=0.2, help='dropout rate')
-    parser.add_argument('--learning_rate', type=float, default=0.001, help='learning_rate')
+    parser.add_argument('--learning_rate', type=float, default=0.0001, help='learning_rate')
     parser.add_argument('--save_model_name', type=str, default='resnet10_img_multi_scale_finetune.pth', help='model save name')
-    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default=['1'], help='使用哪块GPU')
+    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default=['1'], help='which GPU(s) to use')
 
     args_in = sys.argv[1:]
     args = parser.parse_args(args_in)
 
-    # if args.use_gpu:
-    #     os.environ['CUDA_VISIBLE_DEVICES'] = args.cuda_device
-    #     torch.cuda.empty_cache()
-
-    scale_num = 4
+    scale_num = 1
 
     train_valid_label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
     train_valid_data_root_path = os.path.join(args.data_root_path, 'train_valid')
 
     train_valid_datapath_label = load_3d_npy_datapath_label(args.data_root_path, train_valid_label_path)
-    # net = resnet_3d.generate_model(10, args.use_gpu, n_input_channels=channels, n_classes=num_classes)
     net, parameters = generate_model(model_depth=10, use_gpu=args.use_gpu, gpu_id=args.cuda_device)
     params = [
         {'params': parameters['base_parameters'], 'lr': args.learning_rate},
@@ -208,7 +203,7 @@ if __name__ == '__main__':
         while train_valid_datapath_label[0][label][train_index]['dir'] == train_valid_datapath_label[0][label][train_index + 1]['dir']:
             train_index = train_index + 1
         train_index = train_index + 1
-        for scale in range(4):
+        for scale in range(scale_num):
             train_data[scale].extend(train_valid_datapath_label[scale][label][:train_index])
             valid_data[scale].extend(train_valid_datapath_label[scale][label][train_index:])
 

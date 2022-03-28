@@ -33,7 +33,7 @@ def load_3d_datapath_label(data_root_path, label_path):
 
 def load_3d_npy_datapath_label(data_root_path, label_path):
     """
-    加载陈梓然处理的3d npy数据路径，并为其加上对应标签
+    加载npy数据的路径，并为其加上对应标签
     :param data_root_path:
     :param label_path:
     :return:
@@ -43,6 +43,7 @@ def load_3d_npy_datapath_label(data_root_path, label_path):
     scale_num = 1  # 4个尺度
     data_path_with_label = [[[] for j in range(4)] for i in range(scale_num)]  # 创建(4,4,0)的三维数组
 
+    # multi_scale = ['_h280_w400_d100', '_h156_w224_d300', '_h140_w200_d400']
     multi_scale = ['_h280_w400_d100']
 
     for i in range(len(label_df)):

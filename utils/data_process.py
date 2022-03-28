@@ -34,7 +34,7 @@ def itensity_normalize(volume):
 
 def crop_volume(volume, lung_appear_index, lung_disappear_index):
     """
-    crop each image to 270x400,and remove non-lung slices
+    crop each image to 280x400 which mainly contains lung,and remove non-lung slices
     """
     return volume[lung_appear_index:lung_disappear_index, 100:380, 50:450]
 
@@ -62,13 +62,13 @@ def process_volume(path_dic):
     volume = read_nifti_file(path)
     volume = crop_volume(volume, lung_appear_index, lung_disappear_index)
     _, height, width = volume.shape
-    volume = resize_volume(volume, 100, height, width)
+    volume = resize_volume(volume, 300, 156, 224)
     volume = itensity_normalize(volume)
 
     ct_array = np.array([volume])
 
-    np.save("/data/zengnanrong/lung_seg_normal_resize/" + dir + "_h280_w400_d100.npy", ct_array)
-    print('save: ' + dir + "_h280_w400_d100.npy")
+    np.save("/data/zengnanrong/lung_seg_normal_resize/" + dir + "_h156_w224_d300.npy", ct_array)
+    print('save: ' + dir + "_h156_w224_d300.npy")
 
 
 if __name__ == "__main__":
