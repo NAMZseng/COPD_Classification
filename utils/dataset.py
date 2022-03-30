@@ -58,26 +58,11 @@ def load_3d_npy_datapath_label(data_root_path, label_path):
     return data_path_with_label
 
 
-train_valid_lrf_path = '/data/zengnanrong/label_original_match_ct_4_train_valid.xlsx'
-test_lrf_path = '/data/zengnanrong/label_original_match_ct_4_test.xlsx'
-train_valid_lrf_df = pd.read_excel(train_valid_lrf_path, sheet_name='Sheet1')
-train_valid_lrf = np.array(train_valid_lrf_df)
-test_lrf_df = pd.read_excel(test_lrf_path, sheet_name='Sheet1')
-test_lrf = np.array(test_lrf_df)
-
-
-def load_data(data_dic, phase):
+def load_data(data_dic):
     path = data_dic['image_path']
     if path[-4:] == '.npy':
         image_array = np.load(path)  # (1,D,H,W)
-
-        # 获取对应的组学特征
-        index = data_dic['index']
-        if phase == 'train_valid':
-            lrf = train_valid_lrf[index][4:]
-        elif phase == 'test':
-            lrf = test_lrf[index][4:]
-        return image_array, lrf
+    return image_array
 
 
 def count_person_result(input_file, output_file):
@@ -126,9 +111,9 @@ def count_person_result(input_file, output_file):
 
 
 if __name__ == "__main__":
-    data_root_path = "/data/LUNG_SEG/train_valid/"
-    # data_root_path = "/data/zengnanrong/lung_seg_normal_resize"
+    # data_root_path = "/data/LUNG_SEG/train_valid/"
+    data_root_path = "/data/zengnanrong/lung_seg_normal_resize"
     label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
-    data = load_3d_datapath_label(data_root_path, label_path)
-    # data = load_3d_npy_datapath_label(data_root_path, label_path)
-    print(data[0][0])
+    # data = load_3d_datapath_label(data_root_path, label_path)
+    data = load_3d_npy_datapath_label(data_root_path, label_path)
+    print(data[0][0][0])

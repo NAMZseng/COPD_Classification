@@ -28,14 +28,12 @@ def next_batch(batch_size, index_in_total, data, phase):
     end = index_in_total
 
     batch_images = []
-    batch_lrf = []  # Lung radiomics features
     batch_labels = []
     batch_dirs = []
 
     for i in range(start, end):
         if i < total_num:
-            image, lrf = load_data(data[i], phase)
-            batch_lrf.append(lrf)
+            image = load_data(data[i])
             batch_images.append(image)
 
             label = data[i]['label']
@@ -44,7 +42,7 @@ def next_batch(batch_size, index_in_total, data, phase):
             if phase == 'test':
                 batch_dirs.append(data[i]['dir'])
 
-    return batch_images, batch_lrf, batch_labels, batch_dirs, index_in_total
+    return batch_images, batch_labels, batch_dirs, index_in_total
 
 
 def train(net, net_name, use_gpu, train_data, valid_data, batch_size, num_epochs, optimizer, scheduler, criterion, save_model_name,
@@ -80,22 +78,18 @@ def train(net, net_name, use_gpu, train_data, valid_data, batch_size, num_epochs
 
         for batch in range(batch_num_train):
             for scale in range(scale_num):
-                batch_images, batch_lrf, batch_labels, _, index_in_trainset[scale] = next_batch(batch_size, index_in_trainset[scale],
-                                                                                                train_data[scale], phase)
+                batch_images, batch_labels, _, index_in_trainset[scale] = next_batch(batch_size, index_in_trainset[scale],
+                                                                                     train_data[scale], phase)
                 batch_images = torch.tensor(batch_images, dtype=torch.float)
-                batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
-
                 if use_gpu:
                     batch_images = Variable(batch_images.cuda())
-                    batch_lrf = Variable(batch_lrf.cuda())
                     batch_labels = Variable(torch.tensor(batch_labels).cuda())
                 else:
                     batch_images = Variable(batch_images)
-                    batch_lrf = Variable(batch_lrf)
                     batch_labels = Variable(torch.tensor(batch_labels))
 
                 optimizer.zero_grad()  # 清除上一个batch计算的梯度,因为pytorch默认会累积梯度
-                output = net(batch_images, batch_lrf)
+                output = net(batch_images)
                 loss = criterion(output, batch_labels)  # 计算损失
                 loss = loss.requires_grad_()
                 loss.backward()  # 计算梯度
@@ -114,21 +108,18 @@ def train(net, net_name, use_gpu, train_data, valid_data, batch_size, num_epochs
         with torch.no_grad():
             for batch in range(batch_num_valid):
                 for scale in range(scale_num):
-                    batch_images, batch_lrf, batch_labels, _, index_in_validset[scale] = next_batch(batch_size, index_in_validset[scale],
-                                                                                                    valid_data[scale], phase)
+                    batch_images, batch_labels, _, index_in_validset[scale] = next_batch(batch_size, index_in_validset[scale],
+                                                                                         valid_data[scale], phase)
                     batch_images = torch.tensor(batch_images, dtype=torch.float)
-                    batch_lrf = torch.tensor(batch_lrf, dtype=torch.float)
 
                     if use_gpu:
                         batch_images = Variable(batch_images.cuda())
-                        batch_lrf = Variable(batch_lrf.cuda())
                         batch_labels = Variable(torch.tensor(batch_labels).cuda())
                     else:
                         batch_images = Variable(batch_images)
-                        batch_lrf = Variable(batch_lrf)
                         batch_labels = Variable(torch.tensor(batch_labels))
 
-                    output = net(batch_images, batch_lrf)
+                    output = net(batch_images)
                     loss = criterion(output, batch_labels)
                     valid_loss += loss.data
                     _, pred_label = output.max(1)
@@ -168,12 +159,12 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--net_name', type=str, default='resnet_3D', choices=['resnet_3D'], help='net model to use')
     parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/lung_seg_normal_resize', help='input data path')
-    parser.add_argument('--use_gpu', type=bool, default=True, help='wether to use GPU')
-    parser.add_argument('--batch_size', type=int, default=8, help='batch size')
+    parser.add_argument('--use_gpu', type=bool, default=True, help='whether to use GPU')
+    parser.add_argument('--batch_size', type=int, default=1, help='batch size')
     parser.add_argument('--num_epochs', type=int, default=200, help='num of epochs')
     parser.add_argument('--drop_rate', type=int, default=0.2, help='dropout rate')
     parser.add_argument('--learning_rate', type=float, default=0.0001, help='learning_rate')
-    parser.add_argument('--save_model_name', type=str, default='resnet10_img_multi_scale_finetune.pth', help='model save name')
+    parser.add_argument('--save_model_name', type=str, default='debug.pth', help='model save name')
     parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default=['1'], help='which GPU(s) to use')
 
     args_in = sys.argv[1:]
@@ -190,7 +181,8 @@ if __name__ == '__main__':
         {'params': parameters['base_parameters'], 'lr': args.learning_rate},
         {'params': parameters['new_parameters'], 'lr': args.learning_rate * 100}
     ]
-    optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=1e-3)
+    # optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=1e-3)
+    optimizer = torch.optim.Adam(params, weight_decay=1e-3)
     scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     criterion = nn.CrossEntropyLoss()
 

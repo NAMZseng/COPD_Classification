@@ -41,7 +41,8 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3x3(inplanes, planes, stride=stride, dilation=dilation)
         self.bn1 = nn.BatchNorm3d(planes)
-        self.relu = nn.ReLU(inplace=True)
+        # self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(0.01, inplace=True)
         self.conv2 = conv3x3x3(planes, planes, dilation=dilation)
         self.bn2 = nn.BatchNorm3d(planes)
         self.downsample = downsample
@@ -78,7 +79,8 @@ class Bottleneck(nn.Module):
         self.bn2 = nn.BatchNorm3d(planes)
         self.conv3 = nn.Conv3d(planes, planes * 4, kernel_size=1, bias=False)
         self.bn3 = nn.BatchNorm3d(planes * 4)
-        self.relu = nn.ReLU(inplace=True)
+        # self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(0.01, inplace=True)
         self.downsample = downsample
         self.stride = stride
         self.dilation = dilation
@@ -125,7 +127,8 @@ class ResNet(nn.Module):
             bias=False)
 
         self.bn1 = nn.BatchNorm3d(64)
-        self.relu = nn.ReLU(inplace=True)
+        # self.relu = nn.ReLU(inplace=True)
+        self.relu = nn.LeakyReLU(0.01, inplace=True)
         self.maxpool = nn.MaxPool3d(kernel_size=(3, 3, 3), stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0], shortcut_type)
         self.layer2 = self._make_layer(
@@ -171,7 +174,7 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x_img, x_lrf):
+    def forward(self, x_img):
         x_img = self.conv1(x_img)
         x_img = self.bn1(x_img)
         x_img = self.relu(x_img)
@@ -181,8 +184,8 @@ class ResNet(nn.Module):
         x_img = self.layer3(x_img)
         x_img = self.layer4(x_img)
 
-        x_img = self.avgpool(x_img)
-        x_img = x_img.view(x_img.size(0), -1)
+        x_img = self.avgpool(x_img)  # (batch_size, 512, 1, 1, 1)
+        x_img = x_img.view(x_img.size(0), -1)  # (batch_size, 512)
         out = self.fc(x_img)
 
         return out
