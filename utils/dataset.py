@@ -40,11 +40,12 @@ def load_3d_npy_datapath_label(data_root_path, label_path):
     """
     label_df = pd.read_excel(label_path, sheet_name='Sheet1')
 
-    scale_num = 1  # 4个尺度
+    scale_num = 1  # 尺度种类
     data_path_with_label = [[[] for j in range(4)] for i in range(scale_num)]  # 创建(4,4,0)的三维数组
 
-    # multi_scale = ['_h280_w400_d100', '_h156_w224_d300', '_h140_w200_d400']
-    multi_scale = ['_h280_w400_d100']
+    multi_scale = ['_dhw_224']
+    # views = ['dhw', 'dwh', 'hdw', 'hwd', 'wdh', 'whd']
+    views = ['dhw', 'hdw', 'whd']
 
     for i in range(len(label_df)):
         # 训练时预测的标签范围为[0,3]
@@ -52,8 +53,9 @@ def load_3d_npy_datapath_label(data_root_path, label_path):
         for scale in range(len(multi_scale)):
             scale_image_path = os.path.join(data_root_path, label_df['subject'][i] + multi_scale[scale] + '.npy')
             if os.path.exists(scale_image_path):
-                data_path_with_label[scale][label].append(
-                    {'image_path': scale_image_path, 'label': label, 'dir': label_df['subject'][i], 'index': i})
+                for view in views:
+                    data_path_with_label[scale][label].append(
+                        {'image_path': scale_image_path, 'label': label, 'dir': label_df['subject'][i], 'view': view})
 
     return data_path_with_label
 
@@ -62,6 +64,20 @@ def load_data(data_dic):
     path = data_dic['image_path']
     if path[-4:] == '.npy':
         image_array = np.load(path)  # (1,D,H,W)
+        # TODO 简化代码
+        if data_dic['view'] == 'dwh':
+            image_array = image_array.swapaxes(2, 3)
+        elif data_dic['view'] == 'hdw':
+            image_array = image_array.swapaxes(1, 2)
+        elif data_dic['view'] == 'hwd':
+            image_array = image_array.swapaxes(1, 2)  # hdw
+            image_array = image_array.swapaxes(2, 3)  # hwd
+        elif data_dic['view'] == 'whd':
+            image_array = image_array.swapaxes(1, 3)
+        elif data_dic['view'] == 'wdh':
+            image_array = image_array.swapaxes(1, 3)  # whd
+            image_array = image_array.swapaxes(2, 3)  # hwd
+
     return image_array
 
 
@@ -110,10 +126,30 @@ def count_person_result(input_file, output_file):
     df.to_excel(output_file)
 
 
+def fix_index():
+    """
+    fix lung appear and disappear index, make them satisfy (disappear_index - appear_index) % 50 == 0
+    """
+    input_file = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
+    output_file = '/data/zengnanrong/label_match_ct_4_range_test_fixed.xlsx'
+
+    input_df = pd.read_excel(input_file, sheet_name='Sheet1')
+    for i in range(len(input_df['subject'])):
+        remainder = (input_df['disappear_index'][i] - input_df['appear_index'][i]) % 50
+        if remainder != 0:
+            add_num = remainder / 2
+            input_df['appear_index'][i] += add_num
+            input_df['disappear_index'][i] -= remainder - add_num
+
+    input_df.to_excel(output_file, sheet_name='Sheet1', index=False, header=True)
+
+
 if __name__ == "__main__":
     # data_root_path = "/data/LUNG_SEG/train_valid/"
-    data_root_path = "/data/zengnanrong/lung_seg_normal_resize"
-    label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
+    # data_root_path = "/data/zengnanrong/lung_seg_normal_resize"
+    # label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
     # data = load_3d_datapath_label(data_root_path, label_path)
-    data = load_3d_npy_datapath_label(data_root_path, label_path)
-    print(data[0][0][0])
+    # data = load_3d_npy_datapath_label(data_root_path, label_path)
+    # print(data[0][0][0])
+
+    fix_index()

@@ -61,14 +61,13 @@ def process_volume(path_dic):
 
     volume = read_nifti_file(path)
     volume = crop_volume(volume, lung_appear_index, lung_disappear_index)
-    _, height, width = volume.shape
-    volume = resize_volume(volume, 300, 156, 224)
+    volume = resize_volume(volume, 128, 128, 128)
     volume = itensity_normalize(volume)
 
-    ct_array = np.array([volume])
+    ct_array = np.array([volume])  # channel = 1
 
-    np.save("/data/zengnanrong/lung_seg_normal_resize/" + dir + "_h156_w224_d300.npy", ct_array)
-    print('save: ' + dir + "_h156_w224_d300.npy")
+    np.save("/data/zengnanrong/lung_seg_normal_resize/" + dir + "_dhw_128.npy", ct_array)
+    print('save: ' + dir + "_dhw_128.npy")
 
 
 if __name__ == "__main__":
@@ -85,9 +84,11 @@ if __name__ == "__main__":
         data_dic.extend(train_valid_datapath_label[i])
         data_dic.extend(test_datapath_label[i])
 
-    # process_volume(train_valid_datapath_label[0][0])
+    for i in range(len(data_dic)):
+        process_volume(data_dic[i])
 
-    pool = Pool(8)
-    pool.map(process_volume, data_dic)
-    pool.close()
-    pool.join()
+    # TODO 查明多进程存储混乱原因
+    # pool = Pool(8)
+    # pool.map(process_volume, data_dic)
+    # pool.close()
+    # pool.join()

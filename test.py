@@ -76,8 +76,6 @@ if __name__ == '__main__':
     args_in = sys.argv[1:]
     args = parser.parse_args(args_in)
 
-    scale_num = 1
-
     test_label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
     test_data_root_path = os.path.join(args.data_root_path, 'test')
 
@@ -86,7 +84,8 @@ if __name__ == '__main__':
     checkpoint = torch.load(os.path.join(CHECKPOINT_PATH, args.net_name, args.save_model_name))
     net.load_state_dict(checkpoint['state_dict'])
 
-    test_data = [[], [], [], []]
+    scale_num = 1
+    test_data = [[] for i in range(scale_num)]
 
     for label in range(4):
         for scale in range(scale_num):

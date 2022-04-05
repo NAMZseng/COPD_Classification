@@ -11,7 +11,7 @@ from torch.optim import lr_scheduler
 from torch.utils.tensorboard import SummaryWriter
 
 from global_settings import CHECKPOINT_PATH, LOG_DIR, TIME_NOW
-from models.resnet import generate_model
+from models import resnet, tinynet
 from utils.dataset import load_data, load_3d_npy_datapath_label
 from utils.logger import log
 
@@ -77,6 +77,7 @@ def train(net, net_name, use_gpu, train_data, valid_data, batch_size, num_epochs
         index_in_trainset = [0] * scale_num
 
         for batch in range(batch_num_train):
+            # 每次重复加载scale次，这样确保每个batch_images里是相同尺寸的图像
             for scale in range(scale_num):
                 batch_images, batch_labels, _, index_in_trainset[scale] = next_batch(batch_size, index_in_trainset[scale],
                                                                                      train_data[scale], phase)
@@ -157,7 +158,7 @@ def train(net, net_name, use_gpu, train_data, valid_data, batch_size, num_epochs
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--net_name', type=str, default='resnet_3D', choices=['resnet_3D'], help='net model to use')
+    parser.add_argument('--net_name', type=str, default='resnet_3D', choices=['resnet_3D', 'tinynet'], help='net model to use')
     parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/lung_seg_normal_resize', help='input data path')
     parser.add_argument('--use_gpu', type=bool, default=True, help='whether to use GPU')
     parser.add_argument('--batch_size', type=int, default=1, help='batch size')
@@ -170,24 +171,28 @@ if __name__ == '__main__':
     args_in = sys.argv[1:]
     args = parser.parse_args(args_in)
 
-    scale_num = 1
-
     train_valid_label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
     train_valid_data_root_path = os.path.join(args.data_root_path, 'train_valid')
 
     train_valid_datapath_label = load_3d_npy_datapath_label(args.data_root_path, train_valid_label_path)
-    net, parameters = generate_model(model_depth=10, use_gpu=args.use_gpu, gpu_id=args.cuda_device)
-    params = [
-        {'params': parameters['base_parameters'], 'lr': args.learning_rate},
-        {'params': parameters['new_parameters'], 'lr': args.learning_rate * 100}
-    ]
-    # optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=1e-3)
-    optimizer = torch.optim.Adam(params, weight_decay=1e-3)
+    if args.net_name == 'resnet_3D':
+        net, parameters = resnet.generate_model(model_depth=10, use_gpu=args.use_gpu, gpu_id=args.cuda_device)
+        params = [
+            {'params': parameters['base_parameters'], 'lr': args.learning_rate},
+            {'params': parameters['new_parameters'], 'lr': args.learning_rate * 10}
+        ]
+    elif args.net_name == 'tinynet':
+        net, parameters = tinynet.generate_model(use_gpu=args.use_gpu, gpu_id=args.cuda_device)
+        params = [{'params': parameters, 'lr': args.learning_rate}]
+
+    optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=1e-3)
+    # optimizer = torch.optim.Adam(params, weight_decay=1e-3)
     scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
     criterion = nn.CrossEntropyLoss()
 
-    train_data = [[], [], [], []]
-    valid_data = [[], [], [], []]
+    scale_num = 1
+    train_data = [[] for i in range(scale_num)]
+    valid_data = [[] for i in range(scale_num)]
 
     for label in range(4):
         # 每个标签的数据按 训练集：验证集：测试集 6:1:3

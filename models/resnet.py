@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -174,20 +175,20 @@ class ResNet(nn.Module):
 
         return nn.Sequential(*layers)
 
-    def forward(self, x_img):
-        x_img = self.conv1(x_img)
-        x_img = self.bn1(x_img)
-        x_img = self.relu(x_img)
-        x_img = self.maxpool(x_img)
-        x_img = self.layer1(x_img)
-        x_img = self.layer2(x_img)
-        x_img = self.layer3(x_img)
-        x_img = self.layer4(x_img)
+    def forward(self, x):
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
+        x = self.layer2(x)
+        x = self.layer3(x)
+        x = self.layer4(x)
 
-        x_img = self.avgpool(x_img)  # (batch_size, 512, 1, 1, 1)
-        x_img = x_img.view(x_img.size(0), -1)  # (batch_size, 512)
-        out = self.fc(x_img)
+        x = self.avgpool(x)  # (batch_size, 512, 1, 1, 1)
+        x = x.view(x.size(0), -1)  # (batch_size, 512)
 
+        out = self.fc(x)
         return out
 
 
@@ -249,8 +250,7 @@ def generate_model(model_depth=10, use_gpu=True, gpu_id=['1'], phase='train',
 
         new_parameters_id = list(map(id, new_parameters))
         base_parameters = list(filter(lambda p: id(p) not in new_parameters_id, model.parameters()))
-        parameters = {'base_parameters': base_parameters,
-                      'new_parameters': new_parameters}
+        parameters = {'base_parameters': base_parameters, 'new_parameters': new_parameters}
 
         return model, parameters
 
@@ -258,4 +258,6 @@ def generate_model(model_depth=10, use_gpu=True, gpu_id=['1'], phase='train',
 
 
 if __name__ == '__main__':
-    generate_model()
+    model = generate_model(use_gpu=False)
+    x = torch.randn((1, 1, 600, 280, 400))
+    out = model.forward(x)
