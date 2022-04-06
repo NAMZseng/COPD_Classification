@@ -8,52 +8,43 @@ from torch import nn
 from torch.autograd import Variable
 
 from global_settings import CHECKPOINT_PATH, RESULT_DIR
-from models.resnet import generate_model
-from train import next_batch
-from utils.dataset import load_3d_npy_datapath_label
+from models import tinynet, resnet
+from utils.dataset import Dataset
 
 
-def test(net, net_name, use_gpu, test_data, batch_size, result_file, scale_num):
-    phase = 'test'
+def test(net, net_name, use_gpu, test_loader, result_file):
     result_dir = os.path.join(RESULT_DIR, net_name)
     if not os.path.exists(result_dir):
         os.makedirs(result_dir)
 
     net.eval()
-    batch_num = int(len(test_data[0]) / batch_size)
     with torch.no_grad():
         test_acc = 0
-        index_in_testset = [0] * scale_num
         label_list = []
         probability_predicted_list = []
         label_predicted_list = []
         dirs_list = []
-        for batch in range(batch_num):
-            for scale in range(scale_num):
-                batch_images, batch_labels, batch_dirs, index_in_testset[scale] = next_batch(batch_size, index_in_testset[scale],
-                                                                                             test_data[scale], phase)
-                batch_images = torch.tensor(batch_images, dtype=torch.float)
+        for batch_images, batch_labels, batch_subjects in test_loader:
+            if use_gpu:
+                batch_images = Variable(batch_images.cuda())
+                batch_labels = Variable(batch_labels.cuda())
+            else:
+                batch_images = Variable(batch_images)
+                batch_labels = Variable(batch_labels)
 
-                if use_gpu:
-                    batch_images = Variable(batch_images.cuda())
-                    batch_labels = Variable(torch.tensor(batch_labels).cuda())
-                else:
-                    batch_images = Variable(batch_images)
-                    batch_labels = Variable(torch.tensor(batch_labels))
+            output = net(batch_images)
+            softmax = nn.Softmax(dim=1)
+            output = softmax(output)
+            _, pred_label = output.max(1)
+            num_correct = pred_label.eq(batch_labels).sum()
+            test_acc += num_correct
 
-                output = net(batch_images)
-                softmax = nn.Softmax(dim=1)
-                output = softmax(output)
-                _, pred_label = output.max(1)
-                num_correct = pred_label.eq(batch_labels).sum()
-                test_acc += num_correct
+            label_list.extend(batch_labels.cpu().numpy().tolist())
+            probability_predicted_list.extend(output.cpu().numpy().tolist())
+            label_predicted_list.extend(pred_label.cpu().numpy().tolist())
+            dirs_list.extend(batch_subjects.cpu().numpy().tolist())
 
-                label_list.extend(batch_labels.cpu().numpy().tolist())
-                probability_predicted_list.extend(output.cpu().numpy().tolist())
-                label_predicted_list.extend(pred_label.cpu().numpy().tolist())
-                dirs_list.extend(batch_dirs)
-
-        test_acc = test_acc / (len(test_data[0]) * scale_num)
+        test_acc = test_acc / len(test_loader)
         print("Test Acc: %f" % test_acc)
         df = pd.DataFrame(probability_predicted_list, columns=['p0', 'p1', 'p2', 'p3'])
         df.insert(df.shape[1], 'label-pre', label_predicted_list)
@@ -64,7 +55,7 @@ def test(net, net_name, use_gpu, test_data, batch_size, result_file, scale_num):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--net_name', type=str, default='resnet_3D', choices=['resnet_3D'], help='net model to use')
+    parser.add_argument('--net_name', type=str, default='resnet_3D', choices=['resnet_3D', 'tinynet'], help='net model to use')
     parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/lung_seg_normal_resize', help='input data path')
     parser.add_argument('--use_gpu', type=bool, default=True, help='whether to use GPU')
     parser.add_argument('--batch_size', type=int, default=8, help='batch size')
@@ -77,18 +68,21 @@ if __name__ == '__main__':
     args = parser.parse_args(args_in)
 
     test_label_path = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
-    test_data_root_path = os.path.join(args.data_root_path, 'test')
+    test_dataset = Dataset(args.data_root_path, test_label_path)
+    test_loader = torch.utils.data.DataLoader(
+        test_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        pin_memory=True,
+        num_workers=8,
+        drop_last=False)
 
-    test_datapath_label = load_3d_npy_datapath_label(args.data_root_path, test_label_path)
-    net, _ = generate_model(model_depth=10, use_gpu=args.use_gpu, gpu_id=args.cuda_device, phase='test')
+    if args.net_name == 'resnet_3D':
+        net, _ = resnet.generate_model(model_depth=10, use_gpu=args.use_gpu, gpu_id=args.cuda_device, phase='test')
+    elif args.net_name == 'tinynet':
+        net, _ = tinynet.generate_model(use_gpu=args.use_gpu, gpu_id=args.cuda_device)
+
     checkpoint = torch.load(os.path.join(CHECKPOINT_PATH, args.net_name, args.save_model_name))
     net.load_state_dict(checkpoint['state_dict'])
 
-    scale_num = 1
-    test_data = [[] for i in range(scale_num)]
-
-    for label in range(4):
-        for scale in range(scale_num):
-            test_data[scale].extend(test_datapath_label[scale][label])
-
-    test(net, args.net_name, args.use_gpu, test_data, args.batch_size, args.result_file, scale_num)
+    test(net, args.net_name, args.use_gpu, test_loader, args.result_file)

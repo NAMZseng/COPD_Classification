@@ -3,11 +3,11 @@ import pandas as pd
 from sklearn.metrics import classification_report
 from sklearn.metrics import confusion_matrix
 
-from dataset import count_person_result
+from utils import count_person_result
 
-# count_person_result('../result/resnet_3D/resnet10_img_multi_scale_finetune.xlsx',
-#                     '../result/resnet_3D/resnet10_img_multi_scale_finetune_dir.xlsx')
-diabetes = pd.read_excel('../result/resnet_3D/resnet10_img_finetune_adam_lrelu_1.xlsx')
+count_person_result('../result/resnet_3D/resnet10_img_finetune_adam_lrelu_224_aug.xlsx',
+                    '../result/resnet_3D/resnet10_img_finetune_adam_lrelu_224_aug_dir.xlsx')
+diabetes = pd.read_excel('../result/resnet_3D/resnet10_img_finetune_adam_lrelu_224_aug_dir.xlsx')
 
 fact = diabetes['label_gt']
 guess = diabetes['label-pre']

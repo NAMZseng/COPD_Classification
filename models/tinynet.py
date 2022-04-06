@@ -7,9 +7,9 @@ class TinyNet(nn.Module):
     def __init__(self, in_channel=1, num_classes=4):
         super(TinyNet, self).__init__()
 
-        self.conv_layer1 = self._conv_layer_set(in_channel, 32, 3)
-        self.conv_layer2 = self._conv_layer_set(32, 64, 3)
-        self.conv_layer3 = self._conv_layer_set(64, 128, 3)
+        self.conv_layer1 = self._basic_block(in_channel, 32, 3)
+        self.conv_layer2 = self._basic_block(32, 64, 3)
+        self.conv_layer3 = self._basic_block(64, 128, 3)
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.fc1 = nn.Linear(128, 64)
         self.bn = nn.BatchNorm1d(64)
@@ -25,7 +25,7 @@ class TinyNet(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-    def _conv_layer_set(self, in_c, out_c, kernel_size):
+    def _basic_block(self, in_c, out_c, kernel_size):
         conv_layer = nn.Sequential(
             nn.Conv3d(in_c, out_c, kernel_size=kernel_size, stride=1, padding=int((kernel_size - 1) / 2)),
             nn.BatchNorm3d(out_c),

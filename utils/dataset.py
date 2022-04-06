@@ -1,155 +1,42 @@
 import os
-
-import numpy as np
+import random
 import pandas as pd
+import numpy as np
+import torch
+import torch.utils.data
 
 
-def load_3d_datapath_label(data_root_path, label_path):
-    """
-    3d网络的数据加载
-    加载每个病人的图像路径，并为其加上对应标签
-    :param data_root_path:
-    :param label_path:
-    :return:
-    """
-    label_df = pd.read_excel(label_path, sheet_name='Sheet1')
+class Dataset(torch.utils.data.Dataset):
+    def __init__(self, data_root_path, label_path):
+        self.label_df = pd.read_excel(label_path, sheet_name='Sheet1')
+        self.views = ['dhw', 'hdw', 'whd']
+        self.data_path_with_label = []
+        for i in range(len(self.label_df)):
+            label = self.label_df['GOLDCLA'][i] - 1
+            subject = self.label_df['subject'][i]
+            image_path = os.path.join(data_root_path, subject + '_dhw_128.npy')
+            if os.path.exists(image_path):
+                for view in self.views:
+                    self.data_path_with_label.append({'image_path': image_path, 'label': label, 'subject': subject, 'view': view})
 
-    data_path_with_label = [[], [], [], []]
+        random.shuffle(self.data_path_with_label)
 
-    for i in range(len(label_df['subject'])):
-        path = os.path.join(data_root_path, label_df['subject'][i])
+    def __len__(self):
+        return len(self.data_path_with_label)
 
-        for root, dirs, files in os.walk(path):
-            if len(dirs) == 1:
-                image_path = os.path.join(root, dirs[0])
-                # 训练时预测的标签范围为[0,3]
-                label = label_df['GOLDCLA'][i] - 1
-                data_path_with_label[label].append({'image_path': image_path, 'label': label, 'dir': dirs[0],
-                                                    'appear_index': label_df['appear_index'][i],
-                                                    'disappear_index': label_df['disappear_index'][i]})
+    def __getitem__(self, idx):
+        path = self.data_path_with_label[idx]['image_path']
+        label = self.data_path_with_label[idx]['label']
+        subject = self.data_path_with_label[idx]['subject']
+        if path[-4:] == '.npy':
+            image_array = np.load(path)  # (1,D,H,W)
+            if self.data_path_with_label[idx]['view'] == 'hdw':
+                image_array = image_array.swapaxes(1, 2)
+            elif self.data_path_with_label[idx]['view'] == 'whd':
+                image_array = image_array.swapaxes(1, 3)
 
-    return data_path_with_label
-
-
-def load_3d_npy_datapath_label(data_root_path, label_path):
-    """
-    加载npy数据的路径，并为其加上对应标签
-    :param data_root_path:
-    :param label_path:
-    :return:
-    """
-    label_df = pd.read_excel(label_path, sheet_name='Sheet1')
-
-    scale_num = 1  # 尺度种类
-    data_path_with_label = [[[] for j in range(4)] for i in range(scale_num)]  # 创建(4,4,0)的三维数组
-
-    multi_scale = ['_dhw_224']
-    # views = ['dhw', 'dwh', 'hdw', 'hwd', 'wdh', 'whd']
-    views = ['dhw', 'hdw', 'whd']
-
-    for i in range(len(label_df)):
-        # 训练时预测的标签范围为[0,3]
-        label = label_df['GOLDCLA'][i] - 1
-        for scale in range(len(multi_scale)):
-            scale_image_path = os.path.join(data_root_path, label_df['subject'][i] + multi_scale[scale] + '.npy')
-            if os.path.exists(scale_image_path):
-                for view in views:
-                    data_path_with_label[scale][label].append(
-                        {'image_path': scale_image_path, 'label': label, 'dir': label_df['subject'][i], 'view': view})
-
-    return data_path_with_label
-
-
-def load_data(data_dic):
-    path = data_dic['image_path']
-    if path[-4:] == '.npy':
-        image_array = np.load(path)  # (1,D,H,W)
-        # TODO 简化代码
-        if data_dic['view'] == 'dwh':
-            image_array = image_array.swapaxes(2, 3)
-        elif data_dic['view'] == 'hdw':
-            image_array = image_array.swapaxes(1, 2)
-        elif data_dic['view'] == 'hwd':
-            image_array = image_array.swapaxes(1, 2)  # hdw
-            image_array = image_array.swapaxes(2, 3)  # hwd
-        elif data_dic['view'] == 'whd':
-            image_array = image_array.swapaxes(1, 3)
-        elif data_dic['view'] == 'wdh':
-            image_array = image_array.swapaxes(1, 3)  # whd
-            image_array = image_array.swapaxes(2, 3)  # hwd
-
-    return image_array
-
-
-def count_person_result(input_file, output_file):
-    """
-    将每个病例的所有测试图像的四个等级的预测概率求平均
-    :param input_file:
-    :param output_file:
-    :return:
-    """
-    input_df = pd.read_excel(input_file, sheet_name='Sheet1')
-    # TODO 解决排序后结果没有写回的问题
-    input_df = input_df.sort_values(by='dirs')
-
-    output_list = []
-    count = 0
-    temp_row = [0.0, 0.0, 0.0, 0.0, 0, 0, 'test']
-    for i in range(len(input_df['dirs'])):
-        temp_row[0] = temp_row[0] + input_df['p0'][i]
-        temp_row[1] = temp_row[1] + input_df['p1'][i]
-        temp_row[2] = temp_row[2] + input_df['p2'][i]
-        temp_row[3] = temp_row[3] + input_df['p3'][i]
-        count = count + 1
-
-        if i + 1 < len(input_df['dirs']) and input_df['dirs'][i] is not input_df['dirs'][i + 1]:
-            for j in range(4):
-                temp_row[j] = temp_row[j] / count
-            temp_row[4] = temp_row[:4].index(max(temp_row[:4]))
-            temp_row[5] = input_df['label_gt'][i]
-            temp_row[6] = input_df['dirs'][i]
-            output_list.append(temp_row)
-
-            count = 0
-            temp_row = [0.0, 0.0, 0.0, 0.0, 0, 0, 'test']
-
-        if i + 1 == len(input_df['dirs']):
-            # last line
-            for j in range(4):
-                temp_row[j] = temp_row[j] / count
-            temp_row[4] = temp_row[:4].index(max(temp_row[:4]))
-            temp_row[5] = input_df['label_gt'][i]
-            temp_row[6] = input_df['dirs'][i]
-            output_list.append(temp_row)
-
-    df = pd.DataFrame(output_list, columns=['p0', 'p1', 'p2', 'p3', 'label-pre', 'label_gt', 'dirs'])
-    df.to_excel(output_file)
-
-
-def fix_index():
-    """
-    fix lung appear and disappear index, make them satisfy (disappear_index - appear_index) % 50 == 0
-    """
-    input_file = '/data/zengnanrong/label_match_ct_4_range_test.xlsx'
-    output_file = '/data/zengnanrong/label_match_ct_4_range_test_fixed.xlsx'
-
-    input_df = pd.read_excel(input_file, sheet_name='Sheet1')
-    for i in range(len(input_df['subject'])):
-        remainder = (input_df['disappear_index'][i] - input_df['appear_index'][i]) % 50
-        if remainder != 0:
-            add_num = remainder / 2
-            input_df['appear_index'][i] += add_num
-            input_df['disappear_index'][i] -= remainder - add_num
-
-    input_df.to_excel(output_file, sheet_name='Sheet1', index=False, header=True)
+        return torch.from_numpy(image_array).float(), label, subject
 
 
 if __name__ == "__main__":
-    # data_root_path = "/data/LUNG_SEG/train_valid/"
-    # data_root_path = "/data/zengnanrong/lung_seg_normal_resize"
-    # label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_train_valid.xlsx'
-    # data = load_3d_datapath_label(data_root_path, label_path)
-    # data = load_3d_npy_datapath_label(data_root_path, label_path)
-    # print(data[0][0][0])
-
-    fix_index()
+    pass

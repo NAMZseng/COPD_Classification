@@ -5,7 +5,7 @@ import numpy as np
 from pathos.multiprocessing import ProcessingPool as Pool
 from scipy import ndimage
 
-from dataset import load_3d_datapath_label
+from utils import load_3d_datapath_label
 
 
 def read_nifti_file(path):
