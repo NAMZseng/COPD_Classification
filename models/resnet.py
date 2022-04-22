@@ -1,12 +1,17 @@
-import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.autograd import Variable
-import math
 from functools import partial
 
-__all__ = ['ResNet', 'resnet10', 'resnet18']
+__all__ = ['ResNet', 'resnet10']
+
+
+def nin_block(in_channels, out_channels, kernel_size, strides, padding):
+    return nn.Sequential(
+        nn.Conv3d(in_channels, out_channels, kernel_size, strides, padding), nn.ReLU(inplace=True),
+        nn.Conv3d(out_channels, out_channels, kernel_size=1), nn.ReLU(inplace=True),
+        nn.Conv3d(out_channels, out_channels, kernel_size=1), nn.ReLU(inplace=True))
 
 
 def conv3x3x3(in_planes, out_planes, stride=1, dilation=1):
@@ -42,8 +47,8 @@ class BasicBlock(nn.Module):
         super(BasicBlock, self).__init__()
         self.conv1 = conv3x3x3(inplanes, planes, stride=stride, dilation=dilation)
         self.bn1 = nn.BatchNorm3d(planes)
-        # self.relu = nn.ReLU(inplace=True)
-        self.relu = nn.LeakyReLU(0.01, inplace=True)
+        self.relu = nn.ReLU(inplace=True)
+        # self.relu = nn.LeakyReLU(0.01, inplace=True)
         self.conv2 = conv3x3x3(planes, planes, dilation=dilation)
         self.bn2 = nn.BatchNorm3d(planes)
         self.downsample = downsample
@@ -58,47 +63,6 @@ class BasicBlock(nn.Module):
         out = self.relu(out)
         out = self.conv2(out)
         out = self.bn2(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out += residual
-        out = self.relu(out)
-
-        return out
-
-
-class Bottleneck(nn.Module):
-    expansion = 4
-
-    def __init__(self, inplanes, planes, stride=1, dilation=1, downsample=None):
-        super(Bottleneck, self).__init__()
-        self.conv1 = nn.Conv3d(inplanes, planes, kernel_size=1, bias=False)
-        self.bn1 = nn.BatchNorm3d(planes)
-        self.conv2 = nn.Conv3d(
-            planes, planes, kernel_size=3, stride=stride, dilation=dilation, padding=dilation, bias=False)
-        self.bn2 = nn.BatchNorm3d(planes)
-        self.conv3 = nn.Conv3d(planes, planes * 4, kernel_size=1, bias=False)
-        self.bn3 = nn.BatchNorm3d(planes * 4)
-        # self.relu = nn.ReLU(inplace=True)
-        self.relu = nn.LeakyReLU(0.01, inplace=True)
-        self.downsample = downsample
-        self.stride = stride
-        self.dilation = dilation
-
-    def forward(self, x):
-        residual = x
-
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-
-        out = self.conv2(out)
-        out = self.bn2(out)
-        out = self.relu(out)
-
-        out = self.conv3(out)
-        out = self.bn3(out)
 
         if self.downsample is not None:
             residual = self.downsample(x)
@@ -128,24 +92,28 @@ class ResNet(nn.Module):
             bias=False)
 
         self.bn1 = nn.BatchNorm3d(64)
-        # self.relu = nn.ReLU(inplace=True)
-        self.relu = nn.LeakyReLU(0.01, inplace=True)
+        self.relu = nn.ReLU(inplace=True)
+        # self.relu = nn.LeakyReLU(0.01, inplace=True)
         self.maxpool = nn.MaxPool3d(kernel_size=(3, 3, 3), stride=2, padding=1)
         self.layer1 = self._make_layer(block, 64, layers[0], shortcut_type)
         self.layer2 = self._make_layer(
             block, 128, layers[1], shortcut_type, stride=2)
         self.layer3 = self._make_layer(
-            block, 256, layers[2], shortcut_type, stride=1, dilation=2)
+            block, 256, layers[2], shortcut_type, stride=2)
         self.layer4 = self._make_layer(
-            block, 512, layers[3], shortcut_type, stride=1, dilation=4)
+            block, 512, layers[3], shortcut_type, stride=2)
 
+        # self.nin_block = nin_block(512, 4, kernel_size=3, strides=1, padding=1)
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
         self.fc = nn.Linear(512, 4)
 
         for m in self.modules():
             if isinstance(m, nn.Conv3d):
-                m.weight = nn.init.kaiming_normal_(m.weight, mode='fan_out')
+                m.weight = nn.init.kaiming_normal_(m.weight, mode='fan_out', nonlinearity='relu')
             elif isinstance(m, nn.BatchNorm3d):
+                m.weight.data.fill_(1)
+                m.bias.data.zero_()
+            elif isinstance(m, nn.BatchNorm1d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
@@ -185,24 +153,19 @@ class ResNet(nn.Module):
         x = self.layer3(x)
         x = self.layer4(x)
 
-        x = self.avgpool(x)  # (batch_size, 512, 1, 1, 1)
-        x = x.view(x.size(0), -1)  # (batch_size, 512)
+        # x = self.drop(x)
+        # x = self.nin_block(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+        x = self.fc(x)
 
-        out = self.fc(x)
-        return out
+        return x
 
 
 def resnet10(**kwargs):
-    """Constructs a ResNet-18 model.
+    """Constructs a ResNet-10 model.
     """
     model = ResNet(BasicBlock, [1, 1, 1, 1], **kwargs)
-    return model
-
-
-def resnet18(**kwargs):
-    """Constructs a ResNet-18 model.
-    """
-    model = ResNet(BasicBlock, [2, 2, 2, 2], **kwargs)
     return model
 
 
@@ -211,9 +174,7 @@ from models import resnet
 
 def generate_model(model_depth=10, use_gpu=True, gpu_id=['1'], phase='train',
                    pretrain_path='/home/MHISS/zengnanrong/COPD/checkpoint/resnet_10_23dataset.pth'):
-    new_layer_names = ['avgpool', 'fc']
-
-    assert model_depth in [10, 18, 34]
+    new_layer_names = ['fc', 'avgpool']
 
     if model_depth == 10:
         model = resnet.resnet10()
@@ -258,6 +219,6 @@ def generate_model(model_depth=10, use_gpu=True, gpu_id=['1'], phase='train',
 
 
 if __name__ == '__main__':
-    model = generate_model(use_gpu=False)
-    x = torch.randn((1, 1, 600, 280, 400))
-    out = model.forward(x)
+    model, parameters = generate_model(use_gpu=False)
+    x = torch.randn((4, 1, 128, 128, 128))
+    out = model(x)

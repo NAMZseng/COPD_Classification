@@ -10,6 +10,7 @@ class Dataset(torch.utils.data.Dataset):
     def __init__(self, data_root_path, label_path):
         self.label_df = pd.read_excel(label_path, sheet_name='Sheet1')
         self.views = ['dhw', 'hdw', 'whd']
+        # self.views = ['dhw']
         self.data_path_with_label = []
         for i in range(len(self.label_df)):
             label = self.label_df['GOLDCLA'][i] - 1
@@ -36,7 +37,3 @@ class Dataset(torch.utils.data.Dataset):
                 image_array = image_array.swapaxes(1, 3)
 
         return torch.from_numpy(image_array).float(), label, subject
-
-
-if __name__ == "__main__":
-    pass

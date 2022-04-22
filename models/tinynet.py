@@ -1,21 +1,19 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 
 class TinyNet(nn.Module):
     def __init__(self, in_channel=1, num_classes=4):
         super(TinyNet, self).__init__()
 
-        self.conv_layer1 = self._basic_block(in_channel, 32, 3)
-        self.conv_layer2 = self._basic_block(32, 64, 3)
-        self.conv_layer3 = self._basic_block(64, 128, 3)
+        self.conv_layer1 = self._basic_block(in_channel, 64)
+        self.conv_layer2 = self._basic_block(64, 64)
+        self.conv_layer3 = self._basic_block(64, 128)
+        self.conv_layer4 = self._basic_block(128, 256)
+
+        self.drop = nn.Dropout(0.5)
+        self.nin_block = self._nin_block(256, num_classes, kernel_size=3, strides=1, padding=1)
         self.avgpool = nn.AdaptiveAvgPool3d((1, 1, 1))
-        self.fc1 = nn.Linear(128, 64)
-        self.bn = nn.BatchNorm1d(64)
-        self.relu = nn.LeakyReLU()
-        self.drop = nn.Dropout(p=0.3)
-        self.fc2 = nn.Linear(64, num_classes)
 
         # 网络参数初始化
         for m in self.modules():
@@ -25,28 +23,32 @@ class TinyNet(nn.Module):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
 
-    def _basic_block(self, in_c, out_c, kernel_size):
+    def _basic_block(self, in_c, out_c):
         conv_layer = nn.Sequential(
-            nn.Conv3d(in_c, out_c, kernel_size=kernel_size, stride=1, padding=int((kernel_size - 1) / 2)),
+            nn.Conv3d(in_c, out_c, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm3d(out_c),
-            nn.LeakyReLU(),
-            nn.MaxPool3d(kernel_size=2, stride=2, padding=0))
+            nn.ReLU(inplace=True),
+            nn.MaxPool3d(kernel_size=3, stride=2, padding=1))
 
         return conv_layer
 
-    def forward(self, x):
-        out = self.conv_layer1(x)
-        out = self.conv_layer2(out)
-        out = self.conv_layer3(out)
-        out = self.avgpool(out)
-        out = out.view(out.size(0), -1)
-        out = self.fc1(out)
-        out = self.bn(out)
-        out = self.relu(out)
-        out = self.drop(out)
-        out = self.fc2(out)
+    def _nin_block(self, in_channels, out_channels, kernel_size, strides, padding):
+        return nn.Sequential(
+            nn.Conv3d(in_channels, out_channels, kernel_size, strides, padding), nn.ReLU(inplace=True),
+            nn.Conv3d(out_channels, out_channels, kernel_size=1), nn.ReLU(inplace=True),
+            nn.Conv3d(out_channels, out_channels, kernel_size=1), nn.ReLU(inplace=True))
 
-        return out
+    def forward(self, x):
+        x = self.conv_layer1(x)
+        x = self.conv_layer2(x)
+        x = self.conv_layer3(x)
+        x = self.conv_layer4(x)
+        x = self.drop(x)
+        x = self.nin_block(x)
+        x = self.avgpool(x)
+        x = x.view(x.size(0), -1)
+
+        return x
 
 
 def generate_model(use_gpu=True, gpu_id=['1']):
@@ -67,6 +69,6 @@ def generate_model(use_gpu=True, gpu_id=['1']):
 
 if __name__ == '__main__':
     model = TinyNet()
-    x = torch.randn((4, 1, 224, 224, 224))
+    x = torch.randn((4, 1, 128, 128, 128))
     out = model.forward(x)
     print(out)

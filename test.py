@@ -37,14 +37,14 @@ def test(net, net_name, use_gpu, test_loader, result_file):
             output = softmax(output)
             _, pred_label = output.max(1)
             num_correct = pred_label.eq(batch_labels).sum()
-            test_acc += num_correct
+            test_acc += num_correct.item()
 
             label_list.extend(batch_labels.cpu().numpy().tolist())
             probability_predicted_list.extend(output.cpu().numpy().tolist())
             label_predicted_list.extend(pred_label.cpu().numpy().tolist())
-            dirs_list.extend(batch_subjects.cpu().numpy().tolist())
+            dirs_list.extend(batch_subjects)
 
-        test_acc = test_acc / len(test_loader)
+        test_acc = test_acc / len(test_loader.dataset)
         print("Test Acc: %f" % test_acc)
         df = pd.DataFrame(probability_predicted_list, columns=['p0', 'p1', 'p2', 'p3'])
         df.insert(df.shape[1], 'label-pre', label_predicted_list)

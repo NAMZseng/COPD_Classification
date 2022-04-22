@@ -41,15 +41,15 @@ def train(net, net_name, use_gpu, train_loader, valid_loader, num_epochs, optimi
 
             optimizer.zero_grad()  # 清除上一个batch计算的梯度,因为pytorch默认会累积梯度
             output = net(batch_images)
-            loss = criterion(output, batch_labels)  # 计算损失
+            loss = criterion(output, batch_labels)  # 计算损失，一个batch得出一个loss值
             loss = loss.requires_grad_()
             loss.backward()  # 计算梯度
             optimizer.step()  # 梯度更新
 
-            train_loss += loss.data
+            train_loss += loss.item()
             _, pred_label = output.max(1)
             num_correct = pred_label.eq(batch_labels).sum()
-            train_acc += num_correct
+            train_acc += num_correct.item()
 
         # 评估
         net.eval()
@@ -65,14 +65,14 @@ def train(net, net_name, use_gpu, train_loader, valid_loader, num_epochs, optimi
 
             output = net(batch_images)
             loss = criterion(output, batch_labels)
-            valid_loss += loss.data
+            valid_loss += loss.item()
             _, pred_label = output.max(1)
             num_correct = pred_label.eq(batch_labels).sum()
-            valid_acc += num_correct
+            valid_acc += num_correct.item()
 
         train_loss = train_loss / len(train_loader)
-        train_acc = train_acc / len(train_loader)
-        valid_acc = valid_acc / len(valid_loader)
+        train_acc = train_acc / len(train_loader.dataset)
+        valid_acc = valid_acc / len(valid_loader.dataset)
         valid_loss = valid_loss / len(valid_loader)
 
         epoch_str = ("Epoch %d. Train Loss: %f, Train Acc: %f, Valid Loss: %f, Valid Acc: %f, "
@@ -101,7 +101,7 @@ def train(net, net_name, use_gpu, train_loader, valid_loader, num_epochs, optimi
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--net_name', type=str, default='tinynet', choices=['resnet_3D', 'tinynet'], help='net model to use')
+    parser.add_argument('--net_name', type=str, default='resnet_3D', choices=['resnet_3D', 'tinynet'], help='net model to use')
     parser.add_argument('--data_root_path', type=str, default='/data/zengnanrong/lung_seg_normal_resize', help='input data path')
     parser.add_argument('--use_gpu', type=bool, default=True, help='whether to use GPU')
     parser.add_argument('--batch_size', type=int, default=2, help='batch size')
@@ -109,7 +109,7 @@ if __name__ == '__main__':
     parser.add_argument('--drop_rate', type=int, default=0.2, help='dropout rate')
     parser.add_argument('--learning_rate', type=float, default=0.001, help='learning_rate')
     parser.add_argument('--save_model_name', type=str, default='debug.pth', help='model save name')
-    parser.add_argument('--cuda_device', type=str, choices=['0', '1'], default=['1'], help='which GPU(s) to use')
+    parser.add_argument('--cuda_device', type=list, default='1', help='which GPU(s) to use')
 
     args_in = sys.argv[1:]
     args = parser.parse_args(args_in)
@@ -121,7 +121,7 @@ if __name__ == '__main__':
         batch_size=args.batch_size,
         shuffle=True,
         pin_memory=True,
-        num_workers=8,
+        num_workers=16,
         drop_last=False)
 
     valid_label_path = '/data/zengnanrong/label_match_ct_4_range_del1524V2_valid.xlsx'
@@ -131,22 +131,28 @@ if __name__ == '__main__':
         batch_size=args.batch_size,
         shuffle=True,
         pin_memory=True,
-        num_workers=8,
+        num_workers=16,
         drop_last=False)
 
     if args.net_name == 'resnet_3D':
         net, parameters = resnet.generate_model(model_depth=10, use_gpu=args.use_gpu, gpu_id=args.cuda_device)
-        params = [
-            {'params': parameters['base_parameters'], 'lr': args.learning_rate},
-            {'params': parameters['new_parameters'], 'lr': args.learning_rate * 10}
-        ]
+        # params = [
+        #     {'params': parameters['base_parameters'], 'lr': args.learning_rate},
+        #     {'params': parameters['new_parameters'], 'lr': args.learning_rate * 10}
+        # ]
+        for param in parameters['base_parameters']:
+            param.requires_grad = False
+        for param in parameters['new_parameters']:
+            param.requires_grad = True
+        optimizer = torch.optim.SGD(parameters['new_parameters'], lr=args.learning_rate, momentum=0.9, weight_decay=1e-3)
     elif args.net_name == 'tinynet':
         net, parameters = tinynet.generate_model(use_gpu=args.use_gpu, gpu_id=args.cuda_device)
         params = [{'params': parameters, 'lr': args.learning_rate}]
+        optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=1e-3)
 
-    optimizer = torch.optim.SGD(params, momentum=0.9, weight_decay=1e-3)
-    # optimizer = torch.optim.Adam(params, weight_decay=1e-3)
     scheduler = lr_scheduler.ExponentialLR(optimizer, gamma=0.99)
+    # optimizer = torch.optim.Adam(params, betas=(0.9, 0.999), eps=1e-4, weight_decay=1e-3)
+    # scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.num_epochs, eta_min=1e-5)
     criterion = nn.CrossEntropyLoss()
 
     train(net, args.net_name, args.use_gpu, train_loader, valid_loader, args.num_epochs, optimizer, scheduler, criterion,

@@ -2,26 +2,37 @@
 
 ----------------------------------train----------------------------------
    nohup python -u train.py \
+ --net_name resnet_3D \
+ --data_root_path /data/zengnanrong/lung_seg_normal_resize \
+ --use_gpu True \
+ --batch_size 32 \
+ --num_epochs 200 \
+ --learning_rate 0.1 \
+ --save_model_name resnet10_img_finetune_128_aug3.pth \
+ --cuda_device 1 \
+ > ./log/3D_resnet/resnet10_img_finetune_128_aug3.log &
+
+
+    nohup python -u train.py \
  --net_name tinynet \
  --data_root_path /data/zengnanrong/lung_seg_normal_resize \
  --use_gpu True \
- --batch_size 8 \
+ --batch_size 4 \
  --num_epochs 200 \
  --learning_rate 0.001 \
- --save_model_name tinynet_img_lrelu_224_aug3.pth \
- --cuda_device 1 \
- > ./log/tinynet/tinynet_img_lrelu_224_aug3_train.log &
-
+ --save_model_name tinynet_128_aug3.pth \
+ --cuda_device 0 \
+ > ./log/tinynet/tinynet_128_aug3.log &
  ----------------------------------test----------------------------------
     nohup python -u test.py \
  --net_name resnet_3D \
  --data_root_path /data/zengnanrong/lung_seg_normal_resize \
  --use_gpu True \
- --batch_size 8 \
- --save_model_name resnet10_img_finetune_adam_lrelu_224_aug.pth \
- --result_file resnet10_img_finetune_adam_lrelu_224_aug.xlsx \
+ --batch_size 16 \
+ --save_model_name resnet10_img_finetune_adam_lrelu_128_aug3.pth \
+ --result_file resnet10_img_finetune_adam_lrelu_128_aug3.xlsx \
  --cuda_device 1 \
- > ./log/3D_resnet/resnet10_img_finetune_adam_lrelu_224_aug_test.log &
+ > ./log/3D_resnet/resnet10_img_finetune_adam_lrelu_128_aug3_test.log &
 
 
 

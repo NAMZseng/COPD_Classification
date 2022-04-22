@@ -19,9 +19,9 @@ def read_nifti_file(path):
     return volume
 
 
-def itensity_normalize(volume):
+def itensity_standardize(volume):
     """
-    normalize the itensity of an nd volume based on the mean and std of nonzeor region
+    Standardize the itensity of an nd volume based on the mean and std of nonzeor region
     """
     pixels = volume[volume < 0]
     mean = pixels.mean()
@@ -62,7 +62,7 @@ def process_volume(path_dic):
     volume = read_nifti_file(path)
     volume = crop_volume(volume, lung_appear_index, lung_disappear_index)
     volume = resize_volume(volume, 128, 128, 128)
-    volume = itensity_normalize(volume)
+    volume = itensity_standardize(volume)
 
     ct_array = np.array([volume])  # channel = 1
 
